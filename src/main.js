@@ -201,32 +201,44 @@ export default class SupernoteAnnotationsPlugin extends Plugin {
       const base = pdfPath.replace(/\.pdf$/i, '');
       const outPath = `${base}${this.settings.annotatedSuffix}.pdf`;
       const newest = Math.max(sourceMtime, pdf.stat.mtime);
-      if (await this.isCurrent(outPath, newest)) return;
 
-      const original = await this.app.vault.readBinary(pdf);
-      const out = await markToAnnotatedPdf(sn, new Uint8Array(original), PDFLib,
-        (m) => console.warn(LOG, path, m));
-      if (!out) return;                       // no ink → deliberately nothing
-      await this.writeBinary(outPath, out);
-      artefact = outPath;
-      new Notice(`Annotated: ${outPath.split('/').pop()}`);
+      if (await this.isCurrent(outPath, newest)) {
+        artefact = outPath;                   // already up to date, nothing to redraw
+      } else {
+        const original = await this.app.vault.readBinary(pdf);
+        const out = await markToAnnotatedPdf(sn, new Uint8Array(original), PDFLib,
+          (m) => console.warn(LOG, path, m));
+        if (!out) return;                     // no ink → deliberately nothing
+        await this.writeBinary(outPath, out);
+        artefact = outPath;
+        new Notice(`Annotated: ${outPath.split('/').pop()}`);
+      }
     } else {
       const outPath = path.replace(/\.note$/i, '.pdf');
-      if (await this.isCurrent(outPath, sourceMtime)) return;
-      const out = await noteToPdf(sn, PDFLib);
-      if (!out) return;
-      await this.writeBinary(outPath, out);
-      artefact = outPath;
-      new Notice(`PDF created: ${outPath.split('/').pop()}`);
+
+      if (await this.isCurrent(outPath, sourceMtime)) {
+        artefact = outPath;
+      } else {
+        const out = await noteToPdf(sn, PDFLib);
+        if (!out) return;
+        await this.writeBinary(outPath, out);
+        artefact = outPath;
+        new Notice(`PDF created: ${outPath.split('/').pop()}`);
+      }
     }
 
+    // Checked independently of the PDF above: switching sidecars on long after
+    // the PDFs were built has to backfill them, otherwise the setting appears
+    // to do nothing at all and never says why.
     if (this.settings.writeSidecars) {
-      const pages = collectText(sn);
-      if (pages) {
-        const target = indexPathFor(path, this.settings.sidecarFolder);
-        await this.writeText(target, buildSidecar(sn, path, artefact, pages, {
-          extraFrontmatter: this.settings.extraFrontmatter,
-        }));
+      const target = indexPathFor(path, this.settings.sidecarFolder);
+      if (!(await this.isCurrent(target, sourceMtime))) {
+        const pages = collectText(sn);
+        if (pages) {
+          await this.writeText(target, buildSidecar(sn, path, artefact, pages, {
+            extraFrontmatter: this.settings.extraFrontmatter,
+          }));
+        }
       }
     }
   }
