@@ -1,0 +1,12 @@
+/*
+ * Hide the device's own files in the file explorer.
+ *
+ * The PDF is the artefact you read; `.note` and `.mark` are device state that
+ * Obsidian cannot open anyway. They stay on disk and stay untouched — this only
+ * stops them cluttering the tree beside the files they generate.
+ */
+
+.nav-file-title[data-path$=".note"],
+.nav-file-title[data-path$=".mark"] {
+  display: none;
+}

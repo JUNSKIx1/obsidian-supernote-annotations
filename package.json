@@ -1,0 +1,36 @@
+{
+  "name": "obsidian-supernote-annotations",
+  "version": "1.0.0",
+  "description": "Convert Supernote .note files to PDF and stamp .mark annotation layers onto a copy of the original PDF, inside Obsidian.",
+  "main": "main.js",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "node esbuild.config.mjs",
+    "dev": "node esbuild.config.mjs --watch",
+    "lint": "eslint .",
+    "test": "node tests/run-all.mjs"
+  },
+  "keywords": [
+    "obsidian",
+    "obsidian-plugin",
+    "supernote",
+    "pdf",
+    "annotations"
+  ],
+  "author": "JUNSKIx1",
+  "license": "GPL-3.0-or-later",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/JUNSKIx1/obsidian-supernote-annotations.git"
+  },
+  "dependencies": {
+    "pdf-lib": "^1.17.1",
+    "supernote-typescript": "0.6.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2",
+    "eslint": "^10.8.1",
+    "eslint-plugin-obsidianmd": "^0.4.1"
+  }
+}
