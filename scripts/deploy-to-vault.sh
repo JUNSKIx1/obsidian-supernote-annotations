@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Build the plugin and copy the three shipped files into a vault.
 #
-#   bash scripts/deploy-to-vault.sh                 # uses $VAULT, or the default below
-#   VAULT="/path/to/vault" bash scripts/deploy-to-vault.sh
+#   VAULT="/path/to/your/vault" bash scripts/deploy-to-vault.sh
+#
+# Quote the path: vault names may contain spaces or &.
 #
 # Only main.js, manifest.json and styles.css are copied — exactly what a release
 # ships and what Obsidian loads. Sources and .git stay in this repo, which is the
@@ -15,11 +16,13 @@
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-VAULT="${VAULT:-$HOME/Nextcloud/ME&ME}"
+VAULT="${VAULT:-}"
 PLUGIN_ID="supernote-annotations"
-DEST="$VAULT/.obsidian/plugins/$PLUGIN_ID"
 
+[ -n "$VAULT" ] || { echo "✗ set VAULT to your vault, e.g. VAULT=\"\$HOME/MyVault\" bash $0"; exit 1; }
 [ -d "$VAULT/.obsidian" ] || { echo "✗ no .obsidian directory in $VAULT — is that a vault?"; exit 1; }
+
+DEST="$VAULT/.obsidian/plugins/$PLUGIN_ID"
 
 echo "building…"
 ( cd "$REPO" && npm run build --silent )
