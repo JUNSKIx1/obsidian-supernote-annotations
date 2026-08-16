@@ -157,8 +157,28 @@ export default class SupernoteAnnotationsPlugin extends Plugin {
     else await this.app.vault.createBinary(p, buf);
   }
 
-  async writeText(path, text) {
+  /**
+   * Write a sidecar, but only when its content would actually change.
+   *
+   * Content comparison rather than a timestamp check, because the sidecar
+   * depends on settings as well as on the source file. Keyed on mtime, editing
+   * the sidecar folder or the extra frontmatter would appear to do nothing
+   * until the .note itself changed — a setting that silently no-ops is worse
+   * than one that is missing.
+   *
+   * Returns true when something was written.
+   */
+  async writeTextIfChanged(path, text) {
     const p = normalizePath(path);
+    const existing = this.app.vault.getAbstractFileByPath(p);
+
+    if (existing instanceof TFile) {
+      const current = await this.app.vault.read(existing);
+      if (current === text) return false;      // identical: leave the file alone
+      await this.app.vault.process(existing, () => text);
+      return true;
+    }
+
     const dir = p.split('/').slice(0, -1).join('/');
     if (dir && !this.app.vault.getAbstractFileByPath(dir)) {
       try {
@@ -167,9 +187,8 @@ export default class SupernoteAnnotationsPlugin extends Plugin {
         // Already there, or created by a concurrent write. Either is fine.
       }
     }
-    const existing = this.app.vault.getAbstractFileByPath(p);
-    if (existing instanceof TFile) await this.app.vault.process(existing, () => text);
-    else await this.app.vault.create(p, text);
+    await this.app.vault.create(p, text);
+    return true;
   }
 
   async process(path) {
@@ -227,18 +246,18 @@ export default class SupernoteAnnotationsPlugin extends Plugin {
       }
     }
 
-    // Checked independently of the PDF above: switching sidecars on long after
+    // Handled independently of the PDF above: switching sidecars on long after
     // the PDFs were built has to backfill them, otherwise the setting appears
-    // to do nothing at all and never says why.
+    // to do nothing at all and never says why. Building the sidecar is cheap —
+    // the text is already parsed and no image is decoded — so it is rebuilt
+    // every pass and written only if it differs.
     if (this.settings.writeSidecars) {
-      const target = indexPathFor(path, this.settings.sidecarFolder);
-      if (!(await this.isCurrent(target, sourceMtime))) {
-        const pages = collectText(sn);
-        if (pages) {
-          await this.writeText(target, buildSidecar(sn, path, artefact, pages, {
-            extraFrontmatter: this.settings.extraFrontmatter,
-          }));
-        }
+      const pages = collectText(sn);
+      if (pages) {
+        const target = indexPathFor(path, this.settings.sidecarFolder);
+        await this.writeTextIfChanged(target, buildSidecar(sn, path, artefact, pages, {
+          extraFrontmatter: this.settings.extraFrontmatter,
+        }));
       }
     }
   }
