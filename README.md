@@ -9,13 +9,13 @@ files Obsidian can actually open.
 ```mermaid
 flowchart LR
   subgraph src["Lands in your vault (read-only)"]
-    A["Notebook.note"]
-    B["Script.pdf"]
-    C["Script.pdf.mark<br/>ink only"]
+    A["20260814_134036.note"]
+    B["Aufgaben Beschaffung.pdf"]
+    C["Aufgaben Beschaffung.pdf.mark<br/>ink only"]
   end
   subgraph out["Generated (safe to delete)"]
-    G["Notebook.pdf<br/>aspect ratio kept, A4 width"]
-    H["Script (annotated).pdf<br/>ink stamped onto a copy"]
+    G["20260814_134036.pdf<br/>aspect ratio kept, A4 width"]
+    H["Aufgaben Beschaffung (annotated).pdf<br/>ink stamped onto a copy"]
     I["Supernote Index/….md<br/>optional, searchable"]
   end
   A --> G
@@ -24,6 +24,13 @@ flowchart LR
   A -.recognized text.-> I
   C -.recognized text.-> I
 ```
+
+![Three PDFs in the Obsidian file explorer: a converted notebook, an original PDF, and its annotated copy](assets/images/files-examples.png)
+
+The same thing in a real vault: `20260814_134036.pdf` was converted from a notebook, `Aufgaben
+Beschaffung.pdf` is the original you copied in, and `Aufgaben Beschaffung (annotated).pdf` is the
+copy carrying your ink. The `.note` and `.mark` files sit right beside them on disk; you do not see
+them because `styles.css` hides both from the file explorer.
 
 **Why you never see the `.mark` on the device.** The Supernote stores your ink in a separate file
 beside the PDF and draws the two together as you read, so its file browser shows only one item and
