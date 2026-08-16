@@ -35,12 +35,22 @@ jobs:
             manifest.json
             styles.css
 
-      - name: Create draft release
+      # Published directly, not as a draft. A draft has to be published by hand,
+      # and the GitHub releases page offers "Draft a new release" far more
+      # prominently than it offers the existing draft — which twice produced a
+      # second, empty release on the same tag and failed review with "the
+      # release is missing the main.js file".
+      #
+      # The title is the tag, so it always contains the version the manifest
+      # declares. Edit the notes afterwards if you want; the assets are what
+      # matter, and they are already verified by `npm run release` before the
+      # tag is ever pushed.
+      - name: Publish release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           tag="${GITHUB_REF#refs/tags/}"
           gh release create "$tag" \
             --title="$tag" \
-            --draft \
+            --generate-notes \
             main.js manifest.json styles.css

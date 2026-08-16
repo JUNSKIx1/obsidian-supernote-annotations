@@ -122,8 +122,9 @@ run('git', ['push', 'origin', version]);
 
 const repo = 'https://github.com/JUNSKIx1/obsidian-supernote-annotations';
 console.log(`\n✓ pushed ${version}\n`);
-console.log('The workflow is now building the release assets.');
-console.log(`Open the DRAFT it creates, add notes, and press "Publish release":`);
+console.log('The workflow is now building and PUBLISHING the release, with');
+console.log('main.js, manifest.json and styles.css attached. Nothing else to do:');
 console.log(`  ${repo}/releases\n`);
-console.log('Do NOT use "Draft a new release" — that creates a second, empty');
-console.log('release on the same tag and the review will reject it.\n');
+console.log('Edit the notes there afterwards if you like — but never create a');
+console.log('release by hand. A second release on the same tag has no assets,');
+console.log('and the directory review rejects it.\n');
