@@ -34,8 +34,12 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const MANIFEST = path.join(ROOT, 'manifest.json');
 const VERSIONS = path.join(ROOT, 'versions.json');
 
-const run = (cmd, args, opts = {}) =>
-  execFileSync(cmd, args, { cwd: ROOT, encoding: 'utf8', ...opts }).trim();
+// With stdio:'inherit' the child writes straight to our terminal and
+// execFileSync returns null, so the result is only trimmable when it captured.
+const run = (cmd, args, opts = {}) => {
+  const out = execFileSync(cmd, args, { cwd: ROOT, encoding: 'utf8', ...opts });
+  return typeof out === 'string' ? out.trim() : '';
+};
 
 function die(msg) {
   console.error(`\n✗ ${msg}\n`);
