@@ -1,29 +1,26 @@
 # Supernote Annotations
 
-Read your Supernote handwriting inside Obsidian, including the annotations you draw **on top of
-PDFs**, which no other Supernote plugin handles.
+View your Supernote notes and annotated PDFs seamlessly as converted PDFs. Standard .note files are automatically converted and displayed as PDFs, while annotated PDFs, including their accompanying .mark annotation files, are rendered together so all handwritten notes and annotations appear directly on the PDF.
+
+## 📑 Contents
+
+- [🔒 It never touches your originals](#-it-never-touches-your-originals)
+- [📦 Install](#-install)
+- [▶️ Use it](#-use-it)
+- [⚙️ Settings](#-settings)
+- [🔧 Requirements](#-requirements)
+- [🧠 How it works](#-how-it-works)
+- [🔀 How this differs from the other Supernote plugins](#-how-this-differs-from-the-other-supernote-plugins)
+- [🛠️ Development](#-development)
+- [💬 Support](#-support)
+- [⚖️ License and attribution](#-license-and-attribution)
 
 Sync your vault via WebDAV on Supernote, write on the device, and the plugin turns what lands there into
 files Obsidian can actually open.
 
-```mermaid
-flowchart LR
-  subgraph src["Lands in your vault (read-only)"]
-    A["20260814_134036.note"]
-    B["Aufgaben Beschaffung.pdf"]
-    C["Aufgaben Beschaffung.pdf.mark<br/>ink only"]
-  end
-  subgraph out["Generated (safe to delete)"]
-    G["20260814_134036.pdf<br/>aspect ratio kept, A4 width"]
-    H["Aufgaben Beschaffung (annotated).pdf<br/>ink stamped onto a copy"]
-    I["Supernote Index/….md<br/>optional, searchable"]
-  end
-  A --> G
-  B --> H
-  C --> H
-  A -.recognized text.-> I
-  C -.recognized text.-> I
-```
+![What goes in and what comes out: files that land in your vault read-only — a .note notebook, an original PDF and its .pdf.mark ink layer — become generated files that are safe to delete: a PDF converted from the notebook, an (annotated) copy of the PDF carrying your ink, and optional searchable Markdown from recognized text](assets/images/pipeline.png)
+
+### 🖼️ Example
 
 ![Three PDFs in the Obsidian file explorer: a converted notebook, an original PDF, and its annotated copy](assets/images/files-examples.png)
 
@@ -39,17 +36,17 @@ your strokes stay editable.
 It is pure JavaScript with no native code and no external services, so it runs on the desktop app
 and on a phone alike.
 
-## It never touches your originals
+## 🔒 It never touches your originals
 
 This is the design premise, not a footnote:
 
-- **`.note`, `.mark` and your original PDFs are opened read-only. Always.** The plugin has no code
-  path that writes to them.
-- The annotated PDF is a **separate file**, so the ink stays editable on the device.
-- Everything generated is safe to delete. It gets rebuilt on the next scan.
-- Nothing is sent anywhere. No network calls, no telemetry, no account.
+- 🔒 **`.note`, `.mark` and your original PDFs are opened read-only. Always.** The plugin has no
+  code path that writes to them.
+- 📄 The annotated PDF is a **separate file**, so the ink stays editable on the device.
+- 🗑️ Everything generated is safe to delete. It gets rebuilt on the next scan.
+- 🚫 Nothing is sent anywhere. No network calls, no telemetry, no account.
 
-## Install
+## 📦 Install
 
 **From the community directory:** Settings → Community plugins → Browse → search for
 "Supernote Annotations" → Install → Enable.
@@ -58,7 +55,7 @@ This is the design premise, not a footnote:
 [latest release](https://github.com/JUNSKIx1/obsidian-supernote-annotations/releases/latest) into
 `<vault>/.obsidian/plugins/supernote-annotations/`, then enable it in Settings → Community plugins.
 
-## Use it
+## ▶️ Use it
 
 Create a Note or annotate a PDF in your vault via your Supernote device. (Either sync via Supernote's own Browse & Access, a WebDAV mount, Dropbox, Nextcloud, a USB copy). The plugin watches the vault and
 converts anything that appears.
@@ -66,14 +63,14 @@ converts anything that appears.
 New files are picked up automatically. There is also a **Scan all files** command, and a
 **Scan** button in settings, for a full pass over everything.
 
-### Annotating a PDF
+### ✍️ Annotating a PDF
 
 Copy the PDF into your vault, open it on the Supernote, and write on it. When the `.mark` reaches
 your vault, the plugin stamps it onto a copy and you get `YourFile (annotated).pdf`.
 
 If you keep writing, the copy is regenerated. Delete it whenever you like.
 
-### Searchable handwriting (optional, off by default)
+### 🔍 Searchable handwriting (optional, off by default)
 
 Switch on **Write text sidecars** and the plugin saves the device's own handwriting recognition as
 a small Markdown file, so Obsidian's search and tag pane can see words that otherwise live inside
@@ -86,7 +83,7 @@ without recognition produce no sidecar at all, which is expected rather than a f
 Sidecars are the only thing this plugin writes into your notes, which is why they are off until you
 ask for them.
 
-## Settings
+## ⚙️ Settings
 
 | Setting | Default | What it does |
 | --- | --- | --- |
@@ -100,7 +97,7 @@ ask for them.
 `styles.css` also hides `.note` and `.mark` files in the file explorer, since Obsidian cannot open
 them anyway. The files stay on disk, untouched.
 
-## Requirements
+## 🔧 Requirements
 
 - **Obsidian 1.5.0 or later.**
 - **Desktop and mobile both work.** No Node or Electron APIs are used.
@@ -110,7 +107,7 @@ them anyway. The files stay on disk, untouched.
 - Decoding allocates roughly 20 MB per page, so work is serialised deliberately. A long notebook
   takes a moment, and on a phone that restraint is what stops the OS killing Obsidian.
 
-## How it works
+## 🧠 How it works
 
 A few things about the format were established by measurement. They look arbitrary and are not;
 if you change them, re-run the tests.
@@ -136,7 +133,7 @@ deliberate difference: palette greys decode to 128/169 here where `supernote-too
 157/201 and adds an antialiasing fringe. That is a rendering choice on its side, not a decoding
 disagreement, and the test compares palette pixels to account for it.
 
-## How this differs from the other Supernote plugins
+## 🔀 How this differs from the other Supernote plugins
 
 Three others exist in the directory, and they solve different problems:
 
@@ -150,7 +147,7 @@ may suit you better. This plugin exists for the case where you read PDFs on the 
 slides, papers, scripts) and want that marked-up PDF back in your vault, with the original intact
 and the annotations still editable on the device.
 
-## Development
+## 🛠️ Development
 
 No global tooling required beyond Node.
 
@@ -161,7 +158,7 @@ npm run lint         # the same rules the community directory's review runs
 npm test             # every suite
 ```
 
-**Never hand-edit `main.js`.** It is generated, and your changes go on the next build.
+❗ **Never hand-edit `main.js`.** It is generated, and your changes go on the next build.
 
 The tests that need real Supernote files read them from a directory you name, since handwriting
 does not belong in a public repo. Point it at anything containing `.note`/`.mark` files:
@@ -181,7 +178,7 @@ Without it, the unit tests still run and the rest skip themselves.
 
 The decoder test is the one that must not regress. Run it after any change to `src/rle.js`.
 
-## Support
+## 💬 Support
 
 Bug reports and questions go to
 **[GitHub Issues](https://github.com/JUNSKIx1/obsidian-supernote-annotations/issues)** — please
@@ -201,14 +198,14 @@ is usually enough to diagnose a parsing problem.
 
 Two things that look like bugs but aren't:
 
-- **A `.mark` produced no annotated PDF.** The device writes a `.mark` merely from opening a PDF, so
+- ⚠️ **A `.mark` produced no annotated PDF.** The device writes a `.mark` merely from opening a PDF, so
   most contain no ink. That is deliberate, not a failure.
-- **A `.note` produced no sidecar.** Sidecars need handwriting recognition switched on **for that
+- ⚠️ **A `.note` produced no sidecar.** Sidecars need handwriting recognition switched on **for that
   file, on the device**. The plugin cannot enable it for you.
 
 This is a spare-time project. I read everything, but I can't promise a response time.
 
-## License and attribution
+## ⚖️ License and attribution
 
 **GPL-3.0-or-later.** See [LICENSE](LICENSE).
 

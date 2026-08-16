@@ -1,0 +1,16 @@
+flowchart LR
+  subgraph src["Lands in your vault (read-only)"]
+    A["20260814_134036.note"]
+    B["Aufgaben Beschaffung.pdf"]
+    C["Aufgaben Beschaffung.pdf.mark<br/>ink only"]
+  end
+  subgraph out["Generated (safe to delete)"]
+    G["20260814_134036.pdf<br/>aspect ratio kept, A4 width"]
+    H["Aufgaben Beschaffung (annotated).pdf<br/>ink stamped onto a copy"]
+    I["Supernote Index/….md<br/>optional, searchable"]
+  end
+  A --> G
+  B --> H
+  C --> H
+  A -.recognized text.-> I
+  C -.recognized text.-> I
