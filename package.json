@@ -1,6 +1,6 @@
 {
   "name": "obsidian-supernote-annotations",
-  "version": "1.0.0",
+  "version": "1.0.4",
   "description": "Convert Supernote .note files to PDF and stamp .mark annotation layers onto a copy of the original PDF, inside Obsidian.",
   "main": "main.js",
   "type": "module",
