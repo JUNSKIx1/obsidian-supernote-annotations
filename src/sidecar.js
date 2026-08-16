@@ -23,16 +23,30 @@ function extractTags(text) {
   return [...found].sort();
 }
 
+/**
+ * One page's recognised text.
+ *
+ * `paragraphs` is preferred over `text` because it reflows lines that wrapped
+ * on the device, so a sentence comes back as a sentence. The parser returns it
+ * as a *string*, but an array is accepted too: this is the one place the plugin
+ * touches that shape, and being wrong about it crashes the whole page.
+ */
+function pageText(page) {
+  const raw = page.paragraphs;
+  // `[]` is truthy, so `paragraphs || text` would swallow the fallback.
+  const fromParagraphs = Array.isArray(raw) ? raw.join('\n\n') : String(raw ?? '');
+  const chosen = fromParagraphs.trim() ? fromParagraphs : String(page.text ?? '');
+  return chosen.trim();
+}
+
 /** Recognised text per page, or null when there is none worth writing. */
 function collectText(sn) {
   const pages = [];
   let any = false;
   for (let i = 0; i < sn.pages.length; i++) {
-    const p = sn.pages[i];
-    const text = (p.paragraphs && p.paragraphs.length ? p.paragraphs.join('\n\n') : p.text) || '';
-    const trimmed = String(text).trim();
-    if (trimmed) any = true;
-    pages.push(trimmed);
+    const text = pageText(sn.pages[i]);
+    if (text) any = true;
+    pages.push(text);
   }
   return any ? pages : null;
 }
@@ -103,6 +117,7 @@ function buildSidecar(sn, sourcePath, artefactPath, pagesText, options) {
 
 export {
   extractTags,
+  pageText,
   collectText,
   indexPathFor,
   buildSidecar,

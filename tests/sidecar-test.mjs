@@ -11,13 +11,17 @@
 
 import {
   extractTags,
+  pageText,
   collectText,
   indexPathFor,
   buildSidecar,
   extraFrontmatterLines,
   DEFAULT_FOLDER,
 } from '../src/sidecar.js';
-import { reporter } from './helpers.mjs';
+import fs from 'node:fs';
+import path from 'node:path';
+import { SupernoteX } from 'supernote-typescript/lib/parsing.js';
+import { SAMPLES, findSources, reporter } from './helpers.mjs';
 
 const { check, done } = reporter();
 const eq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
@@ -35,14 +39,32 @@ check(eq(extractTags('#12 ok'), ['12']), 'accepts a numeric tag of two character
 check(eq(extractTags(''), []), 'empty text yields no tags');
 check(eq(extractTags('line\n#tag'), ['tag']), 'a newline counts as whitespace');
 
+console.log('\npageText\n');
+// supernote-typescript's extractParagraphs returns a STRING, not an array.
+// Assuming an array here is what crashed every page with recognized
+// handwriting: a string has .length but no .join.
+check(pageText({ paragraphs: 'a b\n\nc' }) === 'a b\n\nc',
+  'accepts paragraphs as a string, which is what the parser returns');
+check(pageText({ paragraphs: ['p1', 'p2'] }) === 'p1\n\np2',
+  'also accepts an array, in case the shape changes');
+check(pageText({ paragraphs: '', text: 'fallback' }) === 'fallback',
+  'falls back to text when paragraphs is an empty string');
+check(pageText({ paragraphs: [], text: 'fallback' }) === 'fallback',
+  'falls back to text when paragraphs is an empty array');
+check(pageText({ text: '  padded  ' }) === 'padded', 'trims');
+check(pageText({}) === '', 'a page with neither yields an empty string');
+check(pageText({ paragraphs: null, text: null }) === '', 'tolerates nulls');
+
 console.log('\ncollectText\n');
 const snOf = (...pages) => ({ pages });
 check(collectText(snOf({ text: '' }, { text: '   ' })) === null,
   'all-blank pages yield null');
 check(eq(collectText(snOf({ text: 'a' }, { text: '' })), ['a', '']),
   'keeps blank pages in place so page numbers stay right');
+check(eq(collectText(snOf({ paragraphs: 'real parser shape' })), ['real parser shape']),
+  'handles the real string shape end to end');
 check(eq(collectText(snOf({ paragraphs: ['p1', 'p2'] })), ['p1\n\np2']),
-  'joins paragraphs with a blank line');
+  'joins array paragraphs with a blank line');
 check(eq(collectText(snOf({ paragraphs: [], text: 'fallback' })), ['fallback']),
   'falls back to text when paragraphs is empty');
 check(eq(collectText(snOf({})), null),
@@ -91,5 +113,43 @@ check(extra.indexOf('category: lectures') < extra.indexOf('source:'),
   'extra frontmatter stays inside the frontmatter block');
 check(!buildSidecar(sn, 'a.note', null, pages, {}).includes('category:'),
   'adds nothing when extra frontmatter is unset');
+
+// Fixtures above are invented, and an invented fixture cannot tell you the
+// parser returns a string where you assumed an array. Run the same code over
+// real files whenever they are available.
+if (SAMPLES && fs.existsSync(SAMPLES)) {
+  console.log('\nagainst real files\n');
+  const files = findSources(SAMPLES).sort();
+  let parsed = 0;
+  let withText = 0;
+
+  for (const file of files) {
+    const name = path.basename(file);
+    let sn_;
+    try {
+      sn_ = new SupernoteX(new Uint8Array(fs.readFileSync(file)));
+    } catch (e) {
+      check(false, `${name}: parse failed`, e.message);
+      continue;
+    }
+    parsed++;
+    try {
+      const collected = collectText(sn_);
+      if (collected) {
+        withText++;
+        const out = buildSidecar(sn_, name, `${name}.pdf`, collected, { extraFrontmatter: 'a: b' });
+        if (!out.startsWith('---\n')) check(false, `${name}: sidecar has no frontmatter`);
+        if (out.includes('- [ ]')) check(false, `${name}: sidecar emitted a task checkbox`);
+      }
+    } catch (e) {
+      check(false, `${name}: building the sidecar threw`, e.message);
+    }
+  }
+
+  check(parsed === files.length, `parsed all ${files.length} sample files`);
+  check(withText > 0, `${withText} file(s) carried recognized handwriting`);
+} else {
+  console.log('\n  ~ SUPERNOTE_SAMPLES not set — real-file checks skipped\n');
+}
 
 done();
