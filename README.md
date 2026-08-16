@@ -1,16 +1,33 @@
 # Supernote Annotations
 
-Read your Supernote handwriting inside Obsidian — including the annotations you draw **on top of
+Read your Supernote handwriting inside Obsidian, including the annotations you draw **on top of
 PDFs**, which no other Supernote plugin handles.
 
-Point your sync at your vault, write on the device, and the plugin turns what lands there into
+Sync your vault via WebDAV on Supernote, write on the device, and the plugin turns what lands there into
 files Obsidian can actually open.
 
-| Input | Output |
-| --- | --- |
-| `Notebook.note` | `Notebook.pdf` beside it — device aspect ratio kept, sized to A4 width |
-| `Script.pdf` + `Script.pdf.mark` | `Script (annotated).pdf` — your ink stamped onto a **copy** |
-| recognized handwriting | an optional Markdown twin, so search and the tag pane can find it |
+```mermaid
+flowchart LR
+  subgraph src["Lands in your vault (read-only)"]
+    A["Notebook.note"]
+    B["Script.pdf"]
+    C["Script.pdf.mark<br/>ink only"]
+  end
+  subgraph out["Generated (safe to delete)"]
+    G["Notebook.pdf<br/>aspect ratio kept, A4 width"]
+    H["Script (annotated).pdf<br/>ink stamped onto a copy"]
+    I["Supernote Index/….md<br/>optional, searchable"]
+  end
+  A --> G
+  B --> H
+  C --> H
+  A -.recognized text.-> I
+  C -.recognized text.-> I
+```
+
+**Why you never see the `.mark` on the device.** The Supernote stores your ink in a separate file
+beside the PDF and draws the two together as you read, so its file browser shows only one item and
+your strokes stay editable.
 
 It is pure JavaScript with no native code and no external services, so it runs on the desktop app
 and on a phone alike.
@@ -21,33 +38,30 @@ This is the design premise, not a footnote:
 
 - **`.note`, `.mark` and your original PDFs are opened read-only. Always.** The plugin has no code
   path that writes to them.
-- The annotated PDF is a **separate file**. Burning ink into the source would make it permanent and
-  uneditable on the device — you could never adjust that highlight again.
+- The annotated PDF is a **separate file**, so the ink stays editable on the device.
 - Everything generated is safe to delete. It gets rebuilt on the next scan.
 - Nothing is sent anywhere. No network calls, no telemetry, no account.
 
 ## Install
 
-**From the community directory** — Settings → Community plugins → Browse → search for
+**From the community directory:** Settings → Community plugins → Browse → search for
 "Supernote Annotations" → Install → Enable.
 
-**Manually** — download `main.js`, `manifest.json` and `styles.css` from the
+**Manually:** download `main.js`, `manifest.json` and `styles.css` from the
 [latest release](https://github.com/JUNSKIx1/obsidian-supernote-annotations/releases/latest) into
 `<vault>/.obsidian/plugins/supernote-annotations/`, then enable it in Settings → Community plugins.
 
 ## Use it
 
-Get `.note` and `.mark` files into your vault by whatever means you already use — Supernote's own
-Browse & Access, a WebDAV mount, Dropbox, Nextcloud, a USB copy. The plugin watches the vault and
-converts anything that appears; it does not talk to the device itself.
+Create a Note or annotate a PDF in your vault via your Supernote device. (Either sync via Supernote's own Browse & Access, a WebDAV mount, Dropbox, Nextcloud, a USB copy). The plugin watches the vault and
+converts anything that appears.
 
 New files are picked up automatically. There is also a **Scan all files** command, and a
 **Scan** button in settings, for a full pass over everything.
 
 ### Annotating a PDF
 
-Copy the PDF into your vault, open it on the Supernote, and write on it. The device saves a
-sidecar file next to the PDF called `YourFile.pdf.mark`, holding only the ink. When that reaches
+Copy the PDF into your vault, open it on the Supernote, and write on it. When the `.mark` reaches
 your vault, the plugin stamps it onto a copy and you get `YourFile (annotated).pdf`.
 
 If you keep writing, the copy is regenerated. Delete it whenever you like.
@@ -58,7 +72,7 @@ Switch on **Write text sidecars** and the plugin saves the device's own handwrit
 a small Markdown file, so Obsidian's search and tag pane can see words that otherwise live inside
 an image. Any `#tag` you wrote by hand becomes a real tag.
 
-This only works for files where you enabled handwriting recognition **on the device** — it is a
+This only works for files where you enabled handwriting recognition **on the device**. It is a
 per-file setting in the Supernote's own menus, and the plugin cannot turn it on for you. Files
 without recognition produce no sidecar at all, which is expected rather than a failure.
 
@@ -86,7 +100,7 @@ them anyway. The files stay on disk, untouched.
 - PDF generation needs the platform's `CompressionStream`, which means a Chromium-based desktop app
   (all current Obsidian desktop builds) or **iOS 16.4 or later**. On anything older you get a clear
   error instead of a broken PDF.
-- Decoding allocates roughly 20 MB per page, so work is serialised deliberately — a long notebook
+- Decoding allocates roughly 20 MB per page, so work is serialised deliberately. A long notebook
   takes a moment, and on a phone that restraint is what stops the OS killing Obsidian.
 
 ## How it works
@@ -100,12 +114,12 @@ coordinates. So an A4 page occupies a centred sub-rectangle with 54 px bars, and
 onto the page means scaling by that fitted size. Stretching the full canvas onto the page instead
 misplaces every single stroke. `placement()` in `src/render.js` is the one place this is computed.
 
-**Which PDF page a stroke belongs to comes from the container footer**, `sn.footer.PAGE` — a map
+**Which PDF page a stroke belongs to comes from the container footer**, `sn.footer.PAGE`, a map
 of `{ "1": offset, … }` keyed by *PDF page number*. A `.mark` stores only the pages you actually
 annotated, so the nth entry is not the nth page of the document.
 
 **An empty `.mark` is normal.** The device writes one merely from opening a PDF, so most of them
-never receive a stroke. Those produce nothing at all, on purpose — otherwise every PDF you so much
+never receive a stroke. Those produce nothing at all, on purpose; otherwise every PDF you so much
 as glanced at would sprout a pointless duplicate.
 
 **The RATTA_RLE decoder is hand-written** (`src/rle.js`), which is why the plugin needs no image
@@ -119,14 +133,14 @@ disagreement, and the test compares palette pixels to account for it.
 
 Three others exist in the directory, and they solve different problems:
 
-- **Supernote (Unofficial)** — viewing `.note` files in Obsidian, exporting them, and screen
+- **Supernote (Unofficial):** viewing `.note` files in Obsidian, exporting them, and screen
   mirroring. The most featureful for notebooks.
-- **Supernote Digests** — importing digest backups and turning highlights into notes.
-- **Supernote Cloud Sync** — mirroring files to and from Supernote Cloud.
+- **Supernote Digests:** importing digest backups and turning highlights into notes.
+- **Supernote Cloud Sync:** mirroring files to and from Supernote Cloud.
 
 **None of them handles `.mark` files.** If all you want is to read your notebooks, one of the above
-may suit you better. This plugin exists for the case where you read PDFs on the device — lecture
-slides, papers, scripts — and want that marked-up PDF back in your vault, with the original intact
+may suit you better. This plugin exists for the case where you read PDFs on the device (lecture
+slides, papers, scripts) and want that marked-up PDF back in your vault, with the original intact
 and the annotations still editable on the device.
 
 ## Development
@@ -140,7 +154,7 @@ npm run lint         # the same rules the community directory's review runs
 npm test             # every suite
 ```
 
-**Never hand-edit `main.js`** — it is generated, and your changes go on the next build.
+**Never hand-edit `main.js`.** It is generated, and your changes go on the next build.
 
 The tests that need real Supernote files read them from a directory you name, since handwriting
 does not belong in a public repo. Point it at anything containing `.note`/`.mark` files:
@@ -166,7 +180,7 @@ The decoder test is the one that must not regress. Run it after any change to `s
 
 This plugin uses the Supernote container parser from
 [supernote-typescript](https://gitlab.com/philips/supernote-typescript) by Philip Smith, which is
-GPL-3.0-or-later — hence the license of the whole. [pdf-lib](https://github.com/Hopding/pdf-lib) is
+GPL-3.0-or-later, hence the license of the whole. [pdf-lib](https://github.com/Hopding/pdf-lib) is
 MIT. The RATTA_RLE decoder, the PNG encoder and the overlay geometry in this repository are
 original work, developed against [supernote-tool](https://github.com/jya-dev/supernote-tool)
 (Apache-2.0) as a reference implementation.
