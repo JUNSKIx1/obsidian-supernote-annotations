@@ -181,6 +181,33 @@ Without it, the unit tests still run and the rest skip themselves.
 
 The decoder test is the one that must not regress. Run it after any change to `src/rle.js`.
 
+## Support
+
+Bug reports and questions go to
+**[GitHub Issues](https://github.com/JUNSKIx1/obsidian-supernote-annotations/issues)** — please
+search the existing ones first, since someone may have hit it already.
+
+A report that includes these is one I can usually act on straight away:
+
+- Your **Obsidian version** and **platform** (Windows, macOS, Linux, iOS, Android).
+- Whether it involves a **`.note`** or a **`.pdf` + `.pdf.mark`** pair.
+- Anything in the **developer console** (desktop: `Ctrl`/`Cmd` + `Shift` + `I` → Console). Errors
+  from this plugin are prefixed `[supernote-annotations]`.
+- What you expected versus what happened.
+
+**Please don't attach the file itself** unless you're certain it contains nothing private — a
+`.note` is your handwriting. `supernote-tool analyze yourfile.note` prints the headers alone, which
+is usually enough to diagnose a parsing problem.
+
+Two things that look like bugs but aren't:
+
+- **A `.mark` produced no annotated PDF.** The device writes a `.mark` merely from opening a PDF, so
+  most contain no ink. That is deliberate, not a failure.
+- **A `.note` produced no sidecar.** Sidecars need handwriting recognition switched on **for that
+  file, on the device**. The plugin cannot enable it for you.
+
+This is a spare-time project. I read everything, but I can't promise a response time.
+
 ## License and attribution
 
 **GPL-3.0-or-later.** See [LICENSE](LICENSE).
