@@ -18,8 +18,11 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 
 const suites = [
   'sidecar-test.mjs',
+  'paths-test.mjs',
+  'overlay-test.mjs',
   'bundle-test.mjs',
   'write-test.mjs',
+  'move-test.mjs',
   'pdf-test.mjs',
   'decoder-test.mjs',
 ];

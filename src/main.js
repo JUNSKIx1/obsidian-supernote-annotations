@@ -15,7 +15,7 @@
  *     file is still half-written. Nothing is parsed until its size holds still.
  */
 
-import { Plugin, PluginSettingTab, Setting, Notice, TFile, normalizePath } from 'obsidian';
+import { Plugin, PluginSettingTab, Setting, Notice, TFile, TFolder, Vault, normalizePath } from 'obsidian';
 import * as PDFLib from 'pdf-lib';
 // Deep import on purpose: the package's index pulls in image-js, sql.js and
 // fontkit, none of which this plugin needs. parsing.js imports only format.js,
@@ -25,12 +25,18 @@ import { SupernoteX } from 'supernote-typescript/lib/parsing.js';
 
 import { noteToPdf, markToAnnotatedPdf } from './pdfout.js';
 import { collectText, indexPathFor, buildSidecar, DEFAULT_FOLDER } from './sidecar.js';
+import { stemOf, groupPaths, sidecarDir } from './paths.js';
+import { cacheKey, cacheDir } from './overlay.js';
 
 const LOG = '[supernote-annotations]';
 
 const DEFAULTS = {
   convertNotes: true,
   convertMarks: true,
+  // One PDF rather than two: the ink is drawn into the PDF as Obsidian opens
+  // it, and nothing is written beside it. Turn this off to get the separate
+  // "(annotated)" file back.
+  overlayInPlace: true,
   // Off by default: this is the only feature that writes markdown into your
   // vault, so it should be something you switch on knowingly.
   writeSidecars: false,
@@ -48,6 +54,15 @@ export default class SupernoteAnnotationsPlugin extends Plugin {
     this.queue = [];
     this.running = false;
     this.timers = new Map();
+    // Paths we are in the middle of moving ourselves. Every renameFile below
+    // fires the same rename event we are handling, so without this the first
+    // move would recurse through the rest of the group.
+    this.moving = new Set();
+    // PDF path → the stamped copy in the cache. The only thing that makes a
+    // PDF render with ink; empty means every PDF renders exactly as it is on
+    // disk, which is also the state after this plugin is disabled.
+    this.overlays = new Map();
+    this.installOverlayHook();
 
     this.status = this.addStatusBarItem();
     this.setStatus('');
@@ -57,6 +72,12 @@ export default class SupernoteAnnotationsPlugin extends Plugin {
         if (isSource(file)) this.schedule(file.path);
       }));
     }
+
+    this.registerEvent(this.app.vault.on('rename', (file, oldPath) => {
+      this.onRename(file, oldPath).catch((e) => console.error(LOG, 'rename', oldPath, e));
+    }));
+
+    this.registerEvent(this.app.vault.on('delete', (file) => this.onDelete(file)));
 
     this.addCommand({
       id: 'scan-all',
@@ -115,12 +136,253 @@ export default class SupernoteAnnotationsPlugin extends Plugin {
       this.running = false;
       this.setStatus('');
     }
+
+    // Only after a full pass is `overlays` a complete picture of the vault, and
+    // only then is it safe to delete what nothing points at.
+    if (this.sweepPending) {
+      this.sweepPending = false;
+      await this.sweepCache().catch((e) => console.warn(LOG, 'cache sweep', e));
+    }
   }
 
   async scanAll(loud) {
     const files = this.app.vault.getFiles().filter(isSource);
+    this.sweepPending = true;
     for (const f of files) this.enqueue(f.path);
     if (loud) new Notice(`Supernote: ${files.length} file(s) queued.`);
+  }
+
+  /**
+   * Make a PDF render with its ink without changing the PDF.
+   *
+   * Obsidian's PDF view hands PDF.js a URL rather than bytes, and the markdown
+   * embed goes through the same viewer, so redirecting that one URL covers both
+   * with nothing to keep in sync between them. Everything here is public API:
+   * Vault.getResourcePath is exported, and the adapter's takes a plain path, so
+   * the stamped copy can be served straight off disk — no bytes held in memory,
+   * whatever the size of the PDF.
+   *
+   * ponytail: a plain prototype patch with no wrapper detection. If a second
+   * plugin patches the same method after us, unloading restores over the top of
+   * theirs. monkey-around solves it properly and is a dependency this does not
+   * need yet.
+   */
+  installOverlayHook() {
+    const proto = Vault?.prototype;
+    const usable = typeof proto?.getResourcePath === 'function'
+      && typeof this.app.vault.adapter?.getResourcePath === 'function';
+    if (!usable) {
+      // An Obsidian this old or this new is allowed to exist. Degrade to the
+      // separate file rather than to a viewer that shows nothing.
+      console.warn(LOG, 'no usable getResourcePath — keeping the separate annotated PDF');
+      this.settings.overlayInPlace = false;
+      this.overlayUnavailable = true;
+      return;
+    }
+
+    // Captured by reference, not copied: both are mutated in place for the
+    // lifetime of the plugin, and `this` inside the replacement has to stay the
+    // Vault it was called on.
+    const { overlays, settings } = this;
+    const original = proto.getResourcePath;
+    proto.getResourcePath = function (file) {
+      const cached = settings.overlayInPlace && file && overlays.get(file.path);
+      return cached ? this.adapter.getResourcePath(normalizePath(cached)) : original.call(this, file);
+    };
+    this.register(() => { proto.getResourcePath = original; });
+  }
+
+  /** Where stamped copies live. Inside .obsidian, so outside the vault proper. */
+  cacheDir() {
+    return cacheDir(this.app.vault.configDir, this.manifest.id);
+  }
+
+  /**
+   * Point `pdfPath` at a stamped copy, and redraw anything already showing it.
+   *
+   * Only redraws on an actual change: reprocessing an unchanged pair is the
+   * common case on every startup, and rebuilding the view for it would make
+   * opening a PDF flicker for no reason.
+   */
+  setOverlay(pdfPath, cachePath) {
+    if (this.overlays.get(pdfPath) === cachePath) return;
+    if (cachePath) this.overlays.set(pdfPath, cachePath);
+    else this.overlays.delete(pdfPath);
+    this.refreshViews(pdfPath);
+  }
+
+  /** Rebuild any open PDF view of `path` so it picks up the new URL. */
+  refreshViews(path) {
+    for (const leaf of this.app.workspace.getLeavesOfType('pdf')) {
+      if (leaf.view?.file?.path === path) leaf.setViewState(leaf.getViewState());
+    }
+  }
+
+  /**
+   * Delete cache entries nothing points at any more — the .mark was deleted,
+   * or rewritten, and its old stamped copy can be 18 MB of nothing.
+   *
+   * Only ever runs after a full scan, when `overlays` is known to describe
+   * every pair in the vault. Running it at any other time would delete entries
+   * that simply have not been rebuilt yet.
+   */
+  async sweepCache() {
+    const dir = normalizePath(this.cacheDir());
+    if (!(await this.app.vault.adapter.exists(dir))) return;
+    const live = new Set([...this.overlays.values()].map((p) => normalizePath(p)));
+    const { files } = await this.app.vault.adapter.list(dir);
+    for (const f of files) {
+      if (live.has(f)) continue;
+      try {
+        await this.app.vault.adapter.remove(f);
+      } catch (e) {
+        console.warn(LOG, 'could not remove stale cache entry', f, e);
+      }
+    }
+  }
+
+  /**
+   * Keep the group together when one of its files moves or is renamed.
+   *
+   * Nothing about which files belong together is stored: the stem is recovered
+   * from the path that moved and the group rebuilt from it, so the old and new
+   * groups zip one to one and the difference is the list of moves.
+   *
+   * This is not a convenience. Rename a PDF without its .pdf.mark and the
+   * pairing in process() is gone for good — the .mark can never find its PDF
+   * again, and nothing says so out loud.
+   *
+   * Moves go through fileManager.renameFile rather than vault.rename because
+   * that is the one that rewrites [[links]] and ![[embeds]] pointing at the
+   * file, honouring whatever link style the user has configured.
+   */
+  async onRename(file, oldPath) {
+    // Our own doing, echoed back at us.
+    if (this.moving.delete(oldPath)) return;
+
+    if (file instanceof TFolder) return this.onFolderRename(oldPath, file.path);
+    if (!(file instanceof TFile)) return;
+
+    const oldStem = stemOf(oldPath, this.settings);
+    const newStem = stemOf(file.path, this.settings);
+    if (!oldStem || !newStem || oldStem === newStem) return;
+
+    const from = groupPaths(oldStem, this.settings);
+    const to = groupPaths(newStem, this.settings);
+
+    for (let i = 0; i < from.length; i++) {
+      if (from[i] === oldPath) continue;        // the one the user already moved
+      await this.moveOne(from[i], to[i]);
+    }
+
+    // The stamped copy is keyed by the .mark's content, so the move does not
+    // invalidate it — only which PDF it belongs to changed. Re-keying here
+    // rather than waiting for the reprocess below keeps the ink on screen
+    // through the move instead of blinking off and back.
+    const cached = this.overlays.get(`${oldStem}.pdf`);
+    if (cached) {
+      this.overlays.delete(`${oldStem}.pdf`);
+      this.overlays.set(`${newStem}.pdf`, cached);
+    }
+
+    // The sidecar carries `source:` and `artifact:` as plain quoted paths, not
+    // links, so Obsidian's link updater cannot touch them. Reprocessing rebuilds
+    // the file; writeTextIfChanged leaves it alone if nothing actually changed.
+    for (const p of [`${newStem}.note`, `${newStem}.pdf.mark`]) {
+      if (this.app.vault.getAbstractFileByPath(p) instanceof TFile) this.schedule(p);
+    }
+  }
+
+  /** Move one companion, refusing to overwrite anything already sitting there. */
+  async moveOne(from, to) {
+    const f = this.app.vault.getAbstractFileByPath(from);
+    if (!(f instanceof TFile)) return;
+
+    if (this.app.vault.getAbstractFileByPath(to)) {
+      new Notice(`Supernote: ${to.split('/').pop()} already exists — left ${from.split('/').pop()} behind.`);
+      console.warn(LOG, 'target exists, not moving', from, '→', to);
+      return;
+    }
+
+    await this.ensureFolder(to);
+    this.moving.add(from);
+    try {
+      await this.app.fileManager.renameFile(f, to);
+    } catch (e) {
+      this.moving.delete(from);
+      console.error(LOG, 'could not move', from, '→', to, e);
+      new Notice(`Supernote: could not move ${from.split('/').pop()} — ${e.message}`);
+    }
+  }
+
+  /**
+   * A folder moved. Obsidian fires one event for the folder itself; whether it
+   * also fires one per descendant varies, and either way is fine here — a
+   * per-file event finds the companions already beside their sibling and moves
+   * nothing.
+   *
+   * What does need doing is the sidecar mirror, which lives in a different tree
+   * and so never travels with the drag. The mirror is an invariant in both
+   * directions, so dragging a folder inside the index moves the sources to
+   * match, exactly as dragging a source folder moves the index branch.
+   */
+  async onFolderRename(oldPath, newPath) {
+    const dir = sidecarDir(this.settings.sidecarFolder);
+    const inIndex = (p) => p === dir || p.startsWith(`${dir}/`);
+
+    const [from, to] = inIndex(oldPath) && inIndex(newPath)
+      ? [oldPath.slice(dir.length + 1), newPath.slice(dir.length + 1)]  // index → sources
+      : [`${dir}/${oldPath}`, `${dir}/${newPath}`];                     // sources → index
+
+    if (!from || !to || from === to) return;
+
+    const f = this.app.vault.getAbstractFileByPath(from);
+    if (!(f instanceof TFolder)) return;
+    if (this.app.vault.getAbstractFileByPath(to)) {
+      console.warn(LOG, 'target folder exists, not moving', from, '→', to);
+      return;
+    }
+
+    await this.ensureFolder(to);
+    this.moving.add(from);
+    try {
+      await this.app.fileManager.renameFile(f, to);
+    } catch (e) {
+      this.moving.delete(from);
+      console.error(LOG, 'could not move folder', from, '→', to, e);
+    }
+  }
+
+  /**
+   * Deleting a source is allowed — everything generated is meant to be
+   * disposable. But a generated PDF someone has linked in a note is not
+   * disposable in practice, and Obsidian offers no way to intercept a delete,
+   * so the most this can do is say what just happened.
+   */
+  onDelete(file) {
+    if (!isSource(file)) return;
+    const stem = stemOf(file.path, this.settings);
+    if (!stem) return;
+
+    if (file.extension === 'mark') {
+      // The whole point of drawing the ink at view time: taking the .mark away
+      // leaves the PDF exactly as it was, with nothing to undo.
+      this.setOverlay(`${stem}.pdf`, null);
+      new Notice(`Supernote: ink layer gone — ${stem.split('/').pop()}.pdf is plain again.`);
+      return;
+    }
+
+    const linkers = this.linksTo(`${stem}.pdf`);
+    if (linkers.length) {
+      new Notice(`Supernote: ${stem.split('/').pop()}.pdf is still linked from `
+        + `${linkers.map((p) => p.split('/').pop()).join(', ')} and will no longer be rebuilt.`);
+    }
+  }
+
+  /** Notes whose links resolve to `path`. */
+  linksTo(path) {
+    const resolved = this.app.metadataCache.resolvedLinks || {};
+    return Object.keys(resolved).filter((from) => resolved[from][path]);
   }
 
   /**
@@ -179,16 +441,72 @@ export default class SupernoteAnnotationsPlugin extends Plugin {
       return true;
     }
 
-    const dir = p.split('/').slice(0, -1).join('/');
-    if (dir && !this.app.vault.getAbstractFileByPath(dir)) {
-      try {
-        await this.app.vault.createFolder(dir);
-      } catch {
-        // Already there, or created by a concurrent write. Either is fine.
-      }
-    }
+    await this.ensureFolder(p);
     await this.app.vault.create(p, text);
     return true;
+  }
+
+  /** Create the parent folder of `path` if it is missing. */
+  async ensureFolder(path) {
+    const dir = path.split('/').slice(0, -1).join('/');
+    if (!dir || this.app.vault.getAbstractFileByPath(dir)) return;
+    try {
+      await this.app.vault.createFolder(dir);
+    } catch {
+      // Already there, or created by a concurrent write. Either is fine.
+    }
+  }
+
+  /**
+   * Draw a .mark onto its PDF, and decide where the result goes.
+   *
+   * Two destinations, one pipeline. In place, the stamped bytes land in the
+   * cache and the viewer is pointed at them, so the vault keeps one PDF and the
+   * device keeps a pristine one to draw on. Otherwise they land beside the
+   * original as "Name (annotated).pdf", which is what this plugin always did.
+   *
+   * Returns the path the sidecar should link to, or null when there was no ink
+   * — the device writes a .mark merely from opening a PDF, so most of them are
+   * empty and must produce nothing at all.
+   */
+  async stampMark(markPath, sn, markBytes, pdf, markMtime) {
+    const inPlace = this.settings.overlayInPlace;
+    const outPath = inPlace
+      ? `${this.cacheDir()}/${cacheKey(markBytes, pdf.stat.size)}.pdf`
+      : `${pdf.path.replace(/\.pdf$/i, '')}${this.settings.annotatedSuffix}.pdf`;
+
+    // In place the key already encodes both inputs, so the entry existing means
+    // it is current. Beside the original the name says nothing about content,
+    // which is what the mtime comparison is for.
+    const current = inPlace
+      ? await this.app.vault.adapter.exists(normalizePath(outPath))
+      : await this.isCurrent(outPath, Math.max(markMtime, pdf.stat.mtime));
+
+    if (!current) {
+      const original = await this.app.vault.readBinary(pdf);
+      const out = await markToAnnotatedPdf(sn, new Uint8Array(original), PDFLib,
+        (m) => console.warn(LOG, markPath, m));
+      if (!out) {
+        // Ink that used to be there and is not any more: the PDF has to go back
+        // to rendering plain, which it will not do while the old entry stands.
+        if (inPlace) this.setOverlay(pdf.path, null);
+        return null;
+      }
+
+      if (inPlace) {
+        await this.app.vault.adapter.mkdir(normalizePath(this.cacheDir()));
+        await this.app.vault.adapter.writeBinary(normalizePath(outPath),
+          out.buffer.slice(out.byteOffset, out.byteOffset + out.byteLength));
+      } else {
+        await this.writeBinary(outPath, out);
+      }
+      new Notice(`Annotated: ${pdf.name}`);
+    }
+
+    if (!inPlace) return outPath;
+    this.setOverlay(pdf.path, outPath);
+    // The one PDF is what anything should link to now.
+    return pdf.path;
   }
 
   async process(path) {
@@ -217,21 +535,8 @@ export default class SupernoteAnnotationsPlugin extends Plugin {
         console.warn(LOG, 'no PDF beside', path);
         return;
       }
-      const base = pdfPath.replace(/\.pdf$/i, '');
-      const outPath = `${base}${this.settings.annotatedSuffix}.pdf`;
-      const newest = Math.max(sourceMtime, pdf.stat.mtime);
-
-      if (await this.isCurrent(outPath, newest)) {
-        artefact = outPath;                   // already up to date, nothing to redraw
-      } else {
-        const original = await this.app.vault.readBinary(pdf);
-        const out = await markToAnnotatedPdf(sn, new Uint8Array(original), PDFLib,
-          (m) => console.warn(LOG, path, m));
-        if (!out) return;                     // no ink → deliberately nothing
-        await this.writeBinary(outPath, out);
-        artefact = outPath;
-        new Notice(`Annotated: ${outPath.split('/').pop()}`);
-      }
+      artefact = await this.stampMark(path, sn, bytes, pdf, sourceMtime);
+      if (artefact === null) return;          // no ink → deliberately nothing
     } else {
       const outPath = path.replace(/\.note$/i, '.pdf');
 
@@ -290,9 +595,33 @@ class SupernoteAnnotationsSettingTab extends PluginSettingTab {
         .onChange(async (v) => { this.plugin.settings.convertMarks = v; await save(); }));
 
     new Setting(containerEl)
+      .setName('Show the annotations inside the PDF')
+      .setDesc('Keeps one PDF instead of two: the ink is drawn as Obsidian opens the file, and '
+        + 'nothing is written next to it. The PDF on disk stays untouched, so your device still '
+        + 'sees a clean copy to draw on. Turn this off for a separate "(annotated)" file.')
+      .addToggle((t) => t.setValue(this.plugin.settings.overlayInPlace)
+        .setDisabled(!!this.plugin.overlayUnavailable)
+        .onChange(async (v) => {
+          this.plugin.settings.overlayInPlace = v;
+          await save();
+          this.plugin.overlays.clear();
+          this.plugin.scanAll(true);
+          this.display();
+        }));
+
+    if (this.plugin.overlayUnavailable) {
+      containerEl.createEl('p', {
+        cls: 'setting-item-description',
+        text: 'This version of Obsidian does not expose what drawing the ink in place needs, '
+          + 'so the separate file is being used instead.',
+      });
+    }
+
+    new Setting(containerEl)
       .setName('Filename suffix')
-      .setDesc('Appended to the annotated copy.')
+      .setDesc('Appended to the annotated copy, when it is a separate file.')
       .addText((t) => t.setValue(this.plugin.settings.annotatedSuffix)
+        .setDisabled(this.plugin.settings.overlayInPlace)
         .onChange(async (v) => { this.plugin.settings.annotatedSuffix = v || ' (annotated)'; await save(); }));
 
     new Setting(containerEl)

@@ -4,7 +4,7 @@ View your Supernote notes and annotated PDFs seamlessly as converted PDFs. Stand
 
 ## 📑 Contents
 
-- [🔒 It never touches your originals](#-it-never-touches-your-originals)
+- [🔒 It never changes what is inside your originals](#-it-never-changes-what-is-inside-your-originals)
 - [📦 Install](#-install)
 - [▶️ Use it](#-use-it)
 - [⚙️ Settings](#-settings)
@@ -36,12 +36,14 @@ your strokes stay editable.
 It is pure JavaScript with no native code and no external services, so it runs on the desktop app
 and on a phone alike.
 
-## 🔒 It never touches your originals
+## 🔒 It never changes what is inside your originals
 
 This is the design premise, not a footnote:
 
 - 🔒 **`.note`, `.mark` and your original PDFs are opened read-only. Always.** The plugin has no
-  code path that writes to them.
+  code path that writes a single byte into them.
+- 📁 It *will* move and rename them, but only ever to follow you — see
+  [Moving files around](#-moving-files-around). It never picks a location for you.
 - 📄 The annotated PDF is a **separate file**, so the ink stays editable on the device.
 - 🗑️ Everything generated is safe to delete. It gets rebuilt on the next scan.
 - 🚫 Nothing is sent anywhere. No network calls, no telemetry, no account.
@@ -66,9 +68,46 @@ New files are picked up automatically. There is also a **Scan all files** comman
 ### ✍️ Annotating a PDF
 
 Copy the PDF into your vault, open it on the Supernote, and write on it. When the `.mark` reaches
-your vault, the plugin stamps it onto a copy and you get `YourFile (annotated).pdf`.
+your vault, **the PDF starts showing your ink** — the same one file, no second copy to pick
+between. Keep writing and it keeps up.
 
-If you keep writing, the copy is regenerated. Delete it whenever you like.
+The file on disk never changes. The ink is drawn as Obsidian opens it, from the `.mark` beside it,
+which is exactly what the device does. Delete the `.mark` and the PDF is plain again, with nothing
+to clean up.
+
+That the original stays pristine is not tidiness, it is required: your vault is the folder your
+Supernote syncs with. A PDF that went back to the device with the ink already baked into it would
+get the live `.mark` layer drawn on top of the bake — every stroke twice, and worse on every pass.
+
+**Upgrading from a version that made two files?** The old `YourFile (annotated).pdf` copies are
+left exactly where they are — they are your files, and this plugin does not delete things it did
+not just make. They are simply no longer updated. Delete them yourself whenever you like; the ink
+lives in the `.mark`, so nothing is lost.
+
+**Prefer a separate file?** Turn off **Show the annotations inside the PDF** and you get
+`YourFile (annotated).pdf` beside the original, as earlier versions did.
+
+### 📁 Moving files around
+
+A document is not one file. `Lecture.pdf` travels with `Lecture.pdf.mark`, its annotated copy
+and its Markdown sidecar; a notebook travels with the PDF made from it. **Move or rename any one
+of them and the rest follow** — drag the PDF into another folder in Obsidian and everything lands
+beside it, sidecar included, into the mirrored path under the index folder.
+
+This is not a nicety. The `.mark` finds its PDF by name alone, so renaming `Lecture.pdf` on its
+own would orphan the ink permanently, with nothing to tell you.
+
+Moves go through Obsidian's own rename, so **`[[links]]` and `![[embeds]]` pointing at any of
+these files are rewritten for you**, in whatever link style you have configured.
+
+It works in both directions: dragging a sidecar to a different folder inside the index moves the
+files it indexes to match, because the index mirrors your vault's structure by definition.
+
+Nothing is ever overwritten. If something with the same name already sits at the destination, that
+companion stays where it is and you get a notice saying so.
+
+⚠️ Moves made **outside** Obsidian — in Nextcloud, a file manager, or while Obsidian is closed —
+fire no event, so the group is not kept together. Move these files from inside Obsidian.
 
 ### 🔍 Searchable handwriting (optional, off by default)
 
@@ -88,8 +127,9 @@ ask for them.
 | Setting | Default | What it does |
 | --- | --- | --- |
 | Convert `.note` files to PDF | on | A real PDF next to every notebook |
-| Stamp `.mark` files onto a PDF copy | on | The annotated copy described above |
-| Filename suffix | ` (annotated)` | Appended to the annotated copy |
+| Stamp `.mark` files onto a PDF copy | on | The annotations described above |
+| Show the annotations inside the PDF | on | One PDF rather than two — off gives you the separate file |
+| Filename suffix | ` (annotated)` | Appended to the separate copy, when you use one |
 | Write text sidecars | **off** | Recognized handwriting as searchable Markdown |
 | Sidecar folder | `Supernote Index` | Where the twins go, mirroring the source path below it |
 | Extra frontmatter | empty | Extra properties for every sidecar, one per line |
@@ -125,6 +165,15 @@ annotated, so the nth entry is not the nth page of the document.
 **An empty `.mark` is normal.** The device writes one merely from opening a PDF, so most of them
 never receive a stroke. Those produce nothing at all, on purpose; otherwise every PDF you so much
 as glanced at would sprout a pointless duplicate.
+
+**The one PDF is one file because the stamped copy is not in the vault.** Obsidian's PDF view
+hands PDF.js a URL rather than bytes, and the markdown embed goes through the same viewer, so
+`Vault.getResourcePath` is the single place to redirect. The stamped bytes live under
+`.obsidian/plugins/supernote-annotations/annotated/`, named by a hash of the `.mark`'s contents
+plus the original's size — content-keyed, so a move or a rename leaves the cache valid with no
+index to maintain. It is a cache: deleting the folder costs a rebuild and nothing else. On an
+Obsidian that does not expose what this needs, the plugin says so and falls back to the separate
+file rather than to an empty viewer.
 
 **The RATTA_RLE decoder is hand-written** (`src/rle.js`), which is why the plugin needs no image
 library and runs on a phone. It is verified page by page against
@@ -172,6 +221,9 @@ Without it, the unit tests still run and the rest skip themselves.
 | Suite | Checks | Needs |
 | --- | --- | --- |
 | `tests/sidecar-test.mjs` | tag extraction, page collection, sidecar shape | nothing |
+| `tests/paths-test.mjs` | which files form a group, recovered from any one of them | nothing |
+| `tests/overlay-test.mjs` | the cache key: content-derived, stable across moves | nothing |
+| `tests/move-test.mjs` | one drag moves the group, the echo does not recurse, nothing is overwritten | built `main.js` |
 | `tests/bundle-test.mjs` | loads the built `main.js` exactly as Obsidian does | built `main.js` |
 | `tests/pdf-test.mjs` | full pipeline into a temp dir; asserts sources are byte-identical after | samples |
 | `tests/decoder-test.mjs` | every page against `supernote-tool`: canvas size exactly, bounding box within 2 px, blank-or-not exactly, pixel count within 0.5% | samples, `supernote-tool`, python3 + Pillow |
