@@ -18,15 +18,18 @@ View your Supernote notes and annotated PDFs seamlessly as converted PDFs. Stand
 Sync your vault via WebDAV on Supernote, write on the device, and the plugin turns what lands there into
 files Obsidian can actually open.
 
-![What goes in and what comes out: files that land in your vault read-only — a .note notebook, an original PDF and its .pdf.mark ink layer — become generated files that are safe to delete: a PDF converted from the notebook, an (annotated) copy of the PDF carrying your ink, and optional searchable Markdown from recognized text](assets/images/pipeline.png)
+![What goes in and what comes out: files that land in your vault read-only — a .note notebook, an original PDF and its .pdf.mark ink layer — become a PDF converted from the notebook, the original PDF now showing your ink, and optional searchable Markdown from recognized text](assets/images/pipeline.png)
+
+> ℹ️ These two images still show the older layout, where the ink went into a second
+> `(annotated).pdf`. Since 1.1.0 there is one PDF, as described below.
 
 ### 🖼️ Example
 
-![Three PDFs in the Obsidian file explorer: a converted notebook, an original PDF, and its annotated copy](assets/images/files-examples.png)
+![PDFs in the Obsidian file explorer: one converted from a notebook, one copied in and annotated on the device](assets/images/files-examples.png)
 
-The same thing in a real vault: `20260814_134036.pdf` was converted from a notebook, `Aufgaben
-Beschaffung.pdf` is the original you copied in, and `Aufgaben Beschaffung (annotated).pdf` is the
-copy carrying your ink. The `.note` and `.mark` files sit right beside them on disk; you do not see
+The same thing in a real vault: `20260814_134036.pdf` was converted from a notebook, and `Aufgaben
+Beschaffung.pdf` is the original you copied in — open it and your ink is on it, though the file
+itself has not changed. The `.note` and `.mark` files sit right beside them on disk; you do not see
 them because `styles.css` hides both from the file explorer.
 
 **Why you never see the `.mark` on the device.** The Supernote stores your ink in a separate file
@@ -44,7 +47,8 @@ This is the design premise, not a footnote:
   code path that writes a single byte into them.
 - 📁 It *will* move and rename them, but only ever to follow you — see
   [Moving files around](#-moving-files-around). It never picks a location for you.
-- 📄 The annotated PDF is a **separate file**, so the ink stays editable on the device.
+- 📄 Your ink is **drawn as the PDF opens**, never written into it, so the strokes stay editable on
+  the device and the copy it syncs back stays clean.
 - 🗑️ Everything generated is safe to delete. It gets rebuilt on the next scan.
 - 🚫 Nothing is sent anywhere. No network calls, no telemetry, no account.
 
@@ -89,7 +93,7 @@ lives in the `.mark`, so nothing is lost.
 
 ### 📁 Moving files around
 
-A document is not one file. `Lecture.pdf` travels with `Lecture.pdf.mark`, its annotated copy
+One PDF on screen is still several files on disk. `Lecture.pdf` travels with `Lecture.pdf.mark`
 and its Markdown sidecar; a notebook travels with the PDF made from it. **Move or rename any one
 of them and the rest follow** — drag the PDF into another folder in Obsidian and everything lands
 beside it, sidecar included, into the mirrored path under the index folder.
@@ -250,8 +254,8 @@ is usually enough to diagnose a parsing problem.
 
 Two things that look like bugs but aren't:
 
-- ⚠️ **A `.mark` produced no annotated PDF.** The device writes a `.mark` merely from opening a PDF, so
-  most contain no ink. That is deliberate, not a failure.
+- ⚠️ **A PDF with a `.mark` beside it shows no ink.** The device writes a `.mark` merely from opening
+  a PDF, so most contain no strokes at all. That is deliberate, not a failure.
 - ⚠️ **A `.note` produced no sidecar.** Sidecars need handwriting recognition switched on **for that
   file, on the device**. The plugin cannot enable it for you.
 
