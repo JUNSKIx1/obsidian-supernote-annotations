@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="960" viewBox="0 0 1600 960" font-family="DejaVu Sans, Helvetica, Arial, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1170" viewBox="0 0 1600 1170" font-family="DejaVu Sans, Helvetica, Arial, sans-serif">
   <defs>
     <marker id="tip" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M0,0.5 L10,5 L0,9.5 z" fill="#6B7480"/>
@@ -8,7 +8,36 @@
     </marker>
   </defs>
 
-  <rect width="1600" height="960" fill="#FBFBFC"/>
+  <rect width="1600" height="1170" fill="#FBFBFC"/>
+
+  <!-- ============ how the files get there in the first place ============ -->
+
+  <!-- the device -->
+  <rect x="145" y="48" width="160" height="150" rx="10" fill="#FFFFFF" stroke="#4A5361" stroke-width="3"/>
+  <rect x="161" y="64" width="128" height="118" rx="4" fill="#F4F6FE" stroke="#C6CCD6" stroke-width="1.5"/>
+  <path d="M176 96 q16 -20 30 -4 t30 -6 t28 0" fill="none" stroke="#2F4BC4" stroke-width="3.5" stroke-linecap="round"/>
+  <path d="M176 128 h84" stroke="#9AA3B0" stroke-width="3" stroke-linecap="round"/>
+  <path d="M176 150 h100" stroke="#9AA3B0" stroke-width="3" stroke-linecap="round"/>
+  <text x="225" y="228" text-anchor="middle" font-size="26" font-weight="bold" fill="#1B1F26">Your Supernote</text>
+  <text x="225" y="256" text-anchor="middle" font-size="21" fill="#5A6472">where you actually write</text>
+
+  <!-- …kept in step with the vault by something that is not this plugin -->
+  <path d="M322 132 H488" fill="none" stroke="#6B7480" stroke-width="2.5" marker-start="url(#tip)" marker-end="url(#tip)"/>
+  <text x="405" y="116" text-anchor="middle" font-size="19" fill="#4A5361">both ways</text>
+
+  <rect x="500" y="68" width="420" height="124" rx="14" fill="#FFFFFF" stroke="#C6CCD6" stroke-width="2"/>
+  <text x="710" y="112" text-anchor="middle" font-size="25" font-weight="bold" fill="#1B1F26">WebDAV, or any file sync</text>
+  <text x="710" y="145" text-anchor="middle" font-size="20" fill="#5A6472">Nextcloud · Dropbox · Supernote Cloud</text>
+  <text x="710" y="172" text-anchor="middle" font-size="20" fill="#5A6472">— or just a USB copy</text>
+
+  <path d="M620 192 C 620 252, 470 250, 356 288" fill="none" stroke="#6B7480" stroke-width="2.5" marker-end="url(#tip)"/>
+  <text x="812" y="232" text-anchor="middle" font-size="21" fill="#4A5361">whatever it drops into the folder…</text>
+
+  <text x="1270" y="106" text-anchor="middle" font-size="23" font-weight="bold" fill="#1B1F26">The plugin syncs nothing itself.</text>
+  <text x="1270" y="142" text-anchor="middle" font-size="21" fill="#5A6472">It watches your vault folder and reacts to</text>
+  <text x="1270" y="170" text-anchor="middle" font-size="21" fill="#5A6472">whatever your sync client puts there.</text>
+
+  <g transform="translate(0,200)">
 
   <!-- ============ left panel: the read-only inputs ============ -->
   <rect x="40" y="100" width="620" height="670" rx="10" fill="#FFFFFF" stroke="#D8DCE3" stroke-width="2"/>
@@ -88,4 +117,6 @@
 
   <rect x="800" y="853" width="34" height="34" rx="6" fill="#F4F6FE" stroke="#2F4BC4" stroke-width="2.5" stroke-dasharray="6 4"/>
   <text x="852" y="877" font-size="23" fill="#1B1F26">Not a file at all. The ink is drawn as the PDF opens.</text>
+
+  </g>
 </svg>

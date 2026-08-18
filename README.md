@@ -18,7 +18,7 @@ View your Supernote notes and annotated PDFs seamlessly as converted PDFs. Stand
 Sync your vault via WebDAV on Supernote, write on the device, and the plugin turns what lands there into
 files Obsidian can actually open.
 
-![What goes in and what comes out. Three files land in your vault read-only and are never modified: a .note notebook, a PDF you copied in, and its .pdf.mark ink layer. You open three things: a new PDF converted from the notebook, that same PDF you copied in — byte-for-byte unchanged, now with your ink drawn on it as it opens — and an optional searchable Markdown index built from recognized handwriting](assets/images/pipeline.png)
+![How the files get to you and what happens to them. Your Supernote and your vault are kept in step, both ways, by WebDAV or any other file sync — Nextcloud, Dropbox, Supernote Cloud, or just a USB copy; the plugin syncs nothing itself, it only watches the folder. Three files land there read-only and are never modified: a .note notebook, a PDF you copied in, and its .pdf.mark ink layer. You then open three things: a new PDF converted from the notebook, that same PDF you copied in — byte-for-byte unchanged, now with your ink drawn on it as it opens — and an optional searchable Markdown index built from recognized handwriting](assets/images/pipeline.png)
 
 ### 🖼️ Example
 
