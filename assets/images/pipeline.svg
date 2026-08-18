@@ -1,0 +1,90 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="960" viewBox="0 0 1600 960" font-family="DejaVu Sans, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="tip" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0.5 L10,5 L0,9.5 z" fill="#6B7480"/>
+    </marker>
+    <marker id="tipInk" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0.5 L10,5 L0,9.5 z" fill="#2F4BC4"/>
+    </marker>
+  </defs>
+
+  <rect width="1600" height="960" fill="#FBFBFC"/>
+
+  <!-- ============ left panel: the read-only inputs ============ -->
+  <rect x="40" y="100" width="620" height="670" rx="10" fill="#FFFFFF" stroke="#D8DCE3" stroke-width="2"/>
+  <text x="350" y="146" text-anchor="middle" font-size="30" font-weight="bold" fill="#1B1F26">Lands in your vault</text>
+  <text x="350" y="176" text-anchor="middle" font-size="22" fill="#5A6472">opened read-only — never modified</text>
+
+  <rect x="70" y="205" width="560" height="140" rx="8" fill="#EFF1F4" stroke="#C6CCD6" stroke-width="2"/>
+  <text x="350" y="265" text-anchor="middle" font-size="29" fill="#1B1F26">20260814_134036.note</text>
+  <text x="350" y="303" text-anchor="middle" font-size="22" fill="#5A6472">a notebook you wrote on the device</text>
+
+  <rect x="70" y="385" width="560" height="140" rx="8" fill="#EFF1F4" stroke="#C6CCD6" stroke-width="2"/>
+  <text x="350" y="445" text-anchor="middle" font-size="29" fill="#1B1F26">Aufgaben Beschaffung.pdf</text>
+  <text x="350" y="483" text-anchor="middle" font-size="22" fill="#5A6472">the PDF you copied in</text>
+
+  <rect x="70" y="565" width="560" height="140" rx="8" fill="#EFF1F4" stroke="#C6CCD6" stroke-width="2"/>
+  <text x="350" y="619" text-anchor="middle" font-size="29" fill="#1B1F26">Aufgaben Beschaffung.pdf.mark</text>
+  <text x="350" y="657" text-anchor="middle" font-size="22" fill="#5A6472">your ink, on its own — no page underneath</text>
+  <text x="350" y="687" text-anchor="middle" font-size="22" fill="#5A6472">the device keeps it editable</text>
+
+  <!-- ============ right panel: what you actually open ============ -->
+  <rect x="940" y="100" width="620" height="670" rx="10" fill="#FFFFFF" stroke="#D8DCE3" stroke-width="2"/>
+  <text x="1250" y="146" text-anchor="middle" font-size="30" font-weight="bold" fill="#1B1F26">What you open in Obsidian</text>
+  <text x="1250" y="176" text-anchor="middle" font-size="22" fill="#5A6472">two of these are files; one is not</text>
+
+  <!-- converted notebook: a real generated file -->
+  <rect x="970" y="205" width="560" height="140" rx="8" fill="#EFF1F4" stroke="#C6CCD6" stroke-width="2"/>
+  <rect x="994" y="223" width="132" height="30" rx="15" fill="#E3E7ED"/>
+  <text x="1060" y="244" text-anchor="middle" font-size="19" fill="#4A5361">NEW FILE</text>
+  <text x="1250" y="292" text-anchor="middle" font-size="29" fill="#1B1F26">20260814_134036.pdf</text>
+  <text x="1250" y="326" text-anchor="middle" font-size="22" fill="#5A6472">aspect ratio kept — safe to delete</text>
+
+  <!-- the original, shown with ink: NOT a file -->
+  <rect x="970" y="385" width="560" height="140" rx="8" fill="#F4F6FE" stroke="#2F4BC4" stroke-width="2.5" stroke-dasharray="9 6"/>
+  <rect x="994" y="403" width="290" height="30" rx="15" fill="#E5EAFB"/>
+  <text x="1139" y="424" text-anchor="middle" font-size="19" fill="#2F4BC4">THE SAME FILE, UNTOUCHED</text>
+  <text x="1250" y="472" text-anchor="middle" font-size="29" fill="#1B1F26">Aufgaben Beschaffung.pdf</text>
+  <text x="1250" y="506" text-anchor="middle" font-size="22" fill="#3A4657">now with your ink drawn on it</text>
+  <path d="M1420 419 q14 -16 26 -2 t26 -2 t26 -4" fill="none" stroke="#2F4BC4" stroke-width="3.5" stroke-linecap="round"/>
+
+  <!-- sidecar: a real generated file -->
+  <rect x="970" y="565" width="560" height="140" rx="8" fill="#EFF1F4" stroke="#C6CCD6" stroke-width="2"/>
+  <rect x="994" y="583" width="132" height="30" rx="15" fill="#E3E7ED"/>
+  <text x="1060" y="604" text-anchor="middle" font-size="19" fill="#4A5361">NEW FILE</text>
+  <text x="1250" y="652" text-anchor="middle" font-size="29" fill="#1B1F26">Supernote Index/….md</text>
+  <text x="1250" y="686" text-anchor="middle" font-size="22" fill="#5A6472">optional, searchable — safe to delete</text>
+
+  <!-- ============ flows ============ -->
+
+  <!-- .note → converted PDF -->
+  <path d="M630 258 H950" fill="none" stroke="#6B7480" stroke-width="2.5" marker-end="url(#tip)"/>
+  <text x="790" y="245" text-anchor="middle" font-size="21" fill="#4A5361">converted</text>
+
+  <!-- original PDF → the very same PDF, unchanged -->
+  <path d="M630 438 H950" fill="none" stroke="#2F4BC4" stroke-width="3" marker-end="url(#tipInk)"/>
+  <text x="800" y="425" text-anchor="middle" font-size="21" fill="#2F4BC4">byte-for-byte the same file</text>
+
+  <!-- .mark → drawn onto it at open time. Runs flat and lifts only at the end, so
+       it stays clear above its own label instead of slicing through it. -->
+  <path d="M630 620 C 800 620, 860 612, 950 480" fill="none" stroke="#2F4BC4" stroke-width="3" marker-end="url(#tipInk)"/>
+  <text x="805" y="655" text-anchor="middle" font-size="21" fill="#2F4BC4">drawn as you open it,</text>
+  <text x="805" y="682" text-anchor="middle" font-size="21" fill="#2F4BC4">never written into it</text>
+
+  <!-- recognised text → sidecar. The notebook's route drops down a channel at the
+       far left of the gutter, then both merge into one arrow, so the middle stays
+       free for the labels above. Crossings are line-on-line, never over text. -->
+  <path d="M630 330 C 658 330, 666 380, 666 690 C 666 736, 700 748, 828 748" fill="none" stroke="#8A94A2" stroke-width="2" stroke-dasharray="3 5"/>
+  <path d="M630 700 C 706 726, 762 746, 828 748" fill="none" stroke="#8A94A2" stroke-width="2" stroke-dasharray="3 5"/>
+  <path d="M828 748 C 880 748, 900 706, 950 690" fill="none" stroke="#8A94A2" stroke-width="2" stroke-dasharray="3 5" marker-end="url(#tip)"/>
+  <text x="768" y="726" text-anchor="middle" font-size="21" fill="#5A6472">recognized text</text>
+
+  <!-- ============ legend ============ -->
+  <rect x="40" y="820" width="1520" height="100" rx="10" fill="#FFFFFF" stroke="#D8DCE3" stroke-width="2"/>
+
+  <rect x="80" y="853" width="34" height="34" rx="6" fill="#EFF1F4" stroke="#C6CCD6" stroke-width="2"/>
+  <text x="132" y="877" font-size="23" fill="#1B1F26">A file on disk. Safe to delete — rebuilt on the next scan.</text>
+
+  <rect x="800" y="853" width="34" height="34" rx="6" fill="#F4F6FE" stroke="#2F4BC4" stroke-width="2.5" stroke-dasharray="6 4"/>
+  <text x="852" y="877" font-size="23" fill="#1B1F26">Not a file at all. The ink is drawn as the PDF opens.</text>
+</svg>

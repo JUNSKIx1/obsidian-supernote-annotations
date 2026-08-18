@@ -18,10 +18,7 @@ View your Supernote notes and annotated PDFs seamlessly as converted PDFs. Stand
 Sync your vault via WebDAV on Supernote, write on the device, and the plugin turns what lands there into
 files Obsidian can actually open.
 
-![What goes in and what comes out: files that land in your vault read-only — a .note notebook, an original PDF and its .pdf.mark ink layer — become a PDF converted from the notebook, the original PDF now showing your ink, and optional searchable Markdown from recognized text](assets/images/pipeline.png)
-
-> ℹ️ These two images still show the older layout, where the ink went into a second
-> `(annotated).pdf`. Since 1.1.0 there is one PDF, as described below.
+![What goes in and what comes out. Three files land in your vault read-only and are never modified: a .note notebook, a PDF you copied in, and its .pdf.mark ink layer. You open three things: a new PDF converted from the notebook, that same PDF you copied in — byte-for-byte unchanged, now with your ink drawn on it as it opens — and an optional searchable Markdown index built from recognized handwriting](assets/images/pipeline.png)
 
 ### 🖼️ Example
 
@@ -31,6 +28,9 @@ The same thing in a real vault: `20260814_134036.pdf` was converted from a noteb
 Beschaffung.pdf` is the original you copied in — open it and your ink is on it, though the file
 itself has not changed. The `.note` and `.mark` files sit right beside them on disk; you do not see
 them because `styles.css` hides both from the file explorer.
+
+> ℹ️ This screenshot predates 1.1.0, so it still shows a third file, `Aufgaben Beschaffung
+> (annotated).pdf`. That copy is no longer made.
 
 **Why you never see the `.mark` on the device.** The Supernote stores your ink in a separate file
 beside the PDF and draws the two together as you read, so its file browser shows only one item and
@@ -212,6 +212,13 @@ npm test             # every suite
 ```
 
 ❗ **Never hand-edit `main.js`.** It is generated, and your changes go on the next build.
+
+The pipeline diagram is the same deal: edit `assets/images/pipeline.svg`, never the PNG beside it.
+
+```bash
+cd assets/images
+magick -density 96 -background white pipeline.svg -colors 128 -strip PNG8:pipeline.png
+```
 
 The tests that need real Supernote files read them from a directory you name, since handwriting
 does not belong in a public repo. Point it at anything containing `.note`/`.mark` files:
