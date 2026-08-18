@@ -16,44 +16,45 @@
   <text x="350" y="176" text-anchor="middle" font-size="22" fill="#5A6472">opened read-only — never modified</text>
 
   <rect x="70" y="205" width="560" height="140" rx="8" fill="#EFF1F4" stroke="#C6CCD6" stroke-width="2"/>
-  <text x="350" y="265" text-anchor="middle" font-size="29" fill="#1B1F26">20260814_134036.note</text>
-  <text x="350" y="303" text-anchor="middle" font-size="22" fill="#5A6472">a notebook you wrote on the device</text>
+  <text x="350" y="266" text-anchor="middle" font-size="32" fill="#1B1F26">Lecture Notes.note</text>
+  <text x="350" y="304" text-anchor="middle" font-size="22" fill="#5A6472">a notebook you wrote on the device</text>
 
   <rect x="70" y="385" width="560" height="140" rx="8" fill="#EFF1F4" stroke="#C6CCD6" stroke-width="2"/>
-  <text x="350" y="445" text-anchor="middle" font-size="29" fill="#1B1F26">Aufgaben Beschaffung.pdf</text>
-  <text x="350" y="483" text-anchor="middle" font-size="22" fill="#5A6472">the PDF you copied in</text>
+  <text x="350" y="446" text-anchor="middle" font-size="32" fill="#1B1F26">Handout.pdf</text>
+  <text x="350" y="484" text-anchor="middle" font-size="22" fill="#5A6472">a PDF you copied into the vault</text>
 
   <rect x="70" y="565" width="560" height="140" rx="8" fill="#EFF1F4" stroke="#C6CCD6" stroke-width="2"/>
-  <text x="350" y="619" text-anchor="middle" font-size="29" fill="#1B1F26">Aufgaben Beschaffung.pdf.mark</text>
-  <text x="350" y="657" text-anchor="middle" font-size="22" fill="#5A6472">your ink, on its own — no page underneath</text>
-  <text x="350" y="687" text-anchor="middle" font-size="22" fill="#5A6472">the device keeps it editable</text>
+  <text x="350" y="620" text-anchor="middle" font-size="32" fill="#1B1F26">Handout.pdf.mark</text>
+  <text x="350" y="658" text-anchor="middle" font-size="22" fill="#5A6472">your ink, on its own — no page underneath</text>
+  <text x="350" y="688" text-anchor="middle" font-size="22" fill="#5A6472">named after the PDF it belongs to</text>
 
   <!-- ============ right panel: what you actually open ============ -->
   <rect x="940" y="100" width="620" height="670" rx="10" fill="#FFFFFF" stroke="#D8DCE3" stroke-width="2"/>
   <text x="1250" y="146" text-anchor="middle" font-size="30" font-weight="bold" fill="#1B1F26">What you open in Obsidian</text>
-  <text x="1250" y="176" text-anchor="middle" font-size="22" fill="#5A6472">two of these are files; one is not</text>
+  <text x="1250" y="176" text-anchor="middle" font-size="22" fill="#5A6472">one of these is not a new file at all</text>
 
   <!-- converted notebook: a real generated file -->
   <rect x="970" y="205" width="560" height="140" rx="8" fill="#EFF1F4" stroke="#C6CCD6" stroke-width="2"/>
   <rect x="994" y="223" width="132" height="30" rx="15" fill="#E3E7ED"/>
   <text x="1060" y="244" text-anchor="middle" font-size="19" fill="#4A5361">NEW FILE</text>
-  <text x="1250" y="292" text-anchor="middle" font-size="29" fill="#1B1F26">20260814_134036.pdf</text>
-  <text x="1250" y="326" text-anchor="middle" font-size="22" fill="#5A6472">aspect ratio kept — safe to delete</text>
+  <text x="1250" y="293" text-anchor="middle" font-size="32" fill="#1B1F26">Lecture Notes.pdf</text>
+  <text x="1250" y="327" text-anchor="middle" font-size="22" fill="#5A6472">aspect ratio kept — safe to delete</text>
 
   <!-- the original, shown with ink: NOT a file -->
   <rect x="970" y="385" width="560" height="140" rx="8" fill="#F4F6FE" stroke="#2F4BC4" stroke-width="2.5" stroke-dasharray="9 6"/>
   <rect x="994" y="403" width="290" height="30" rx="15" fill="#E5EAFB"/>
   <text x="1139" y="424" text-anchor="middle" font-size="19" fill="#2F4BC4">THE SAME FILE, UNTOUCHED</text>
-  <text x="1250" y="472" text-anchor="middle" font-size="29" fill="#1B1F26">Aufgaben Beschaffung.pdf</text>
-  <text x="1250" y="506" text-anchor="middle" font-size="22" fill="#3A4657">now with your ink drawn on it</text>
+  <text x="1250" y="473" text-anchor="middle" font-size="32" fill="#1B1F26">Handout.pdf</text>
+  <text x="1250" y="507" text-anchor="middle" font-size="22" fill="#3A4657">now with your ink drawn on it</text>
   <path d="M1420 419 q14 -16 26 -2 t26 -2 t26 -4" fill="none" stroke="#2F4BC4" stroke-width="3.5" stroke-linecap="round"/>
 
   <!-- sidecar: a real generated file -->
-  <rect x="970" y="565" width="560" height="140" rx="8" fill="#EFF1F4" stroke="#C6CCD6" stroke-width="2"/>
-  <rect x="994" y="583" width="132" height="30" rx="15" fill="#E3E7ED"/>
-  <text x="1060" y="604" text-anchor="middle" font-size="19" fill="#4A5361">NEW FILE</text>
-  <text x="1250" y="652" text-anchor="middle" font-size="29" fill="#1B1F26">Supernote Index/….md</text>
-  <text x="1250" y="686" text-anchor="middle" font-size="22" fill="#5A6472">optional, searchable — safe to delete</text>
+  <rect x="970" y="565" width="560" height="170" rx="8" fill="#EFF1F4" stroke="#C6CCD6" stroke-width="2"/>
+  <rect x="994" y="583" width="146" height="30" rx="15" fill="#E3E7ED"/>
+  <text x="1067" y="604" text-anchor="middle" font-size="19" fill="#4A5361">NEW FILES</text>
+  <text x="1250" y="648" text-anchor="middle" font-size="27" fill="#1B1F26">Supernote Index/Lecture Notes.md</text>
+  <text x="1250" y="681" text-anchor="middle" font-size="27" fill="#1B1F26">Supernote Index/Handout.md</text>
+  <text x="1250" y="715" text-anchor="middle" font-size="22" fill="#5A6472">one per source — optional, safe to delete</text>
 
   <!-- ============ flows ============ -->
 
