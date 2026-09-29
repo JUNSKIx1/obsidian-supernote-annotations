@@ -23,6 +23,7 @@ const suites = [
   'bundle-test.mjs',
   'write-test.mjs',
   'move-test.mjs',
+  'rotate-test.mjs',
   'pdf-test.mjs',
   'decoder-test.mjs',
 ];

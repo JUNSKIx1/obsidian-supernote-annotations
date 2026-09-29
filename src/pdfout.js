@@ -47,6 +47,18 @@ async function noteToPdf(sn, PDFLib) {
 }
 
 /**
+ * A point in the displayed (rotated) page space → the unrotated space that
+ * PDF drawing operators use. `rotation` is the page's /Rotate, clockwise,
+ * normalised to 0/90/180/270; `w`×`h` is the unrotated MediaBox size.
+ */
+function unrotate(x, y, rotation, w, h) {
+  if (rotation === 90) return { x: w - y, y: x };
+  if (rotation === 180) return { x: w - x, y: h - y };
+  if (rotation === 270) return { x: y, y: h - x };
+  return { x, y };
+}
+
+/**
  * .mark + original PDF → annotated copy, or null when the mark holds no ink.
  *
  * An empty .mark is normal, not an error: the device writes one merely from
@@ -77,15 +89,13 @@ async function markToAnnotatedPdf(sn, pdfBytes, PDFLib, warn) {
     }
 
     const size = page.getSize();
-    const rotation = (page.getRotation && page.getRotation().angle) || 0;
+    const angle = (page.getRotation && page.getRotation().angle) || 0;
+    const rotation = ((angle % 360) + 360) % 360;
     // A rotated page is displayed with its dimensions swapped, and the device
     // annotated what it displayed.
     const swapped = rotation === 90 || rotation === 270;
     const viewW = swapped ? size.height : size.width;
     const viewH = swapped ? size.width : size.height;
-    if (rotation % 360 !== 0 && warn) {
-      warn(`page ${pdfPage} is rotated by ${rotation}° — placement is approximate`);
-    }
 
     const place = placement(decoded.width, decoded.height, viewW, viewH);
     const box = decoded.bbox;
@@ -101,7 +111,11 @@ async function markToAnnotatedPdf(sn, pdfBytes, PDFLib, warn) {
     const h = piece.height / place.scale;
     const y = viewH - yTop - h;
 
-    page.drawImage(img, { x, y, width: w, height: h });
+    // drawImage works in the unrotated page space, and the viewer applies
+    // /Rotate on top — so move the anchor there and counter-rotate the image,
+    // or landscape handwriting on a rotated slide comes out sideways.
+    const at = unrotate(x, y, rotation, size.width, size.height);
+    page.drawImage(img, { x: at.x, y: at.y, width: w, height: h, rotate: PDFLib.degrees(rotation) });
     stamped++;
   }
 
@@ -109,4 +123,4 @@ async function markToAnnotatedPdf(sn, pdfBytes, PDFLib, warn) {
   return doc.save();
 }
 
-export { noteToPdf, markToAnnotatedPdf, markedPageNumbers };
+export { noteToPdf, markToAnnotatedPdf, markedPageNumbers, unrotate };
