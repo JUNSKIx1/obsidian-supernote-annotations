@@ -14,6 +14,78 @@ import { encodePng, crop, flattenToWhite, placement } from './render.js';
 
 const A4_WIDTH = 595.28;
 
+/**
+ * Text a standard PDF font can actually draw.
+ *
+ * The base-14 fonts encode WinAnsi, which covers ASCII and the Latin-1
+ * supplement — German umlauts and ß included — and nothing beyond it. pdf-lib
+ * does not skip what it cannot encode, it throws, so an emoji in a notebook
+ * name would take down the scan of that file rather than merely looking wrong.
+ * Vault paths in the wild are full of them.
+ *
+ * Embedding a Unicode font instead would mean shipping one, for a stand-in page
+ * nobody keeps.
+ */
+function pdfSafe(text, fallback) {
+  // Printable ASCII plus the Latin-1 supplement, which is what WinAnsi covers.
+  const kept = String(text || '').replace(/[^\x20-\x7E\xA0-\xFF]/g, '').trim();
+  return kept || fallback;
+}
+
+/**
+ * A one-page stand-in for a notebook that has not been converted yet.
+ *
+ * Obsidian cannot open a `.note`, so the `.pdf` beside it is the thing you
+ * click, link to and embed. Deferring the real conversion therefore cannot mean
+ * deferring the file — without it there would be nothing in the file explorer
+ * at all. This costs no decoding: a page, a title and two lines of text.
+ *
+ * It says what it is because it will reach the device over the same sync that
+ * brought the notebook, and "empty PDF" there would read as data loss.
+ *
+ * The marker in Subject is what lets the plugin recognise its own stand-in
+ * later; see isPlaceholder in overlay.js.
+ */
+async function placeholderPdf(sn, name, PDFLib, mark) {
+  const doc = await PDFLib.PDFDocument.create();
+  doc.setSubject(mark);
+  doc.setTitle(name);
+
+  const pages = (sn && sn.pages && sn.pages.length) || 0;
+  const height = sn && sn.pageWidth
+    ? A4_WIDTH * (sn.pageHeight / sn.pageWidth)
+    : A4_WIDTH * Math.SQRT2;
+  const page = doc.addPage([A4_WIDTH, height]);
+  const font = await doc.embedFont(PDFLib.StandardFonts.Helvetica);
+
+  const lines = [
+    [pdfSafe(name, 'Supernote notebook'), 18],
+    [pages === 1 ? '1 page' : `${pages} pages`, 12],
+    ['', 12],
+    ['Not converted yet.', 12],
+    ['Open this file in Obsidian and the pages appear.', 12],
+  ];
+
+  let y = height - 90;
+  for (const [text, size] of lines) {
+    if (text) {
+      // Long notebook names would otherwise run off the page edge.
+      let shown = text;
+      while (shown.length > 1 && font.widthOfTextAtSize(`${shown}...`, size) > A4_WIDTH - 100) {
+        shown = shown.slice(0, -2);
+      }
+      page.drawText(shown === text ? text : `${shown}...`, { x: 50, y, size, font });
+    }
+    y -= size * 1.9;
+  }
+
+  // Uncompressed on purpose. By default pdf-lib packs the info dictionary into
+  // a Flate-compressed object stream, which would bury the marker where
+  // isPlaceholder cannot find it without parsing the whole PDF. The file is
+  // about a kilobyte either way.
+  return doc.save({ useObjectStreams: false });
+}
+
 /** PDF page numbers carrying ink, from the container footer: { "1": offset, … }. */
 function markedPageNumbers(sn) {
   const page = (sn.footer && sn.footer.PAGE) || {};
@@ -123,4 +195,4 @@ async function markToAnnotatedPdf(sn, pdfBytes, PDFLib, warn) {
   return doc.save();
 }
 
-export { noteToPdf, markToAnnotatedPdf, markedPageNumbers, unrotate };
+export { noteToPdf, markToAnnotatedPdf, markedPageNumbers, placeholderPdf, unrotate };

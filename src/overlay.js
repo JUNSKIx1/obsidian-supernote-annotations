@@ -51,4 +51,53 @@ function cacheDir(configDir, pluginId) {
   return `${configDir}/plugins/${pluginId}/annotated`;
 }
 
-export { hashBytes, cacheKey, cacheDir };
+/**
+ * Written into the Subject of a placeholder PDF — the stand-in that occupies a
+ * notebook's `.pdf` path until someone actually opens it.
+ *
+ * The marker lives *in the file* rather than in a list kept beside it, and that
+ * is the whole point. A list has to survive moves, renames, deletions, a vault
+ * copied to another machine and a `data.json` someone cleared out; get any of
+ * those wrong and a placeholder is mistaken for a real conversion, which is
+ * silent and permanent. A file that says what it is cannot drift.
+ */
+const PLACEHOLDER_MARK = 'supernote-placeholder';
+
+/** Anything bigger than this had page images in it, so it is a real conversion. */
+const PLACEHOLDER_MAX = 16384;
+
+/** A string as PDF writes it inside <…>: UTF-16BE, two bytes a character, hex. */
+function asPdfHex(s) {
+  let out = '';
+  for (let i = 0; i < s.length; i++) out += s.charCodeAt(i).toString(16).padStart(4, '0');
+  return out.toUpperCase();
+}
+
+/**
+ * Is the PDF at `size` bytes a placeholder rather than a real conversion?
+ *
+ * `read` is called only when the size makes it plausible, so a real PDF is
+ * never pulled off disk to answer this — pass a function, not the bytes.
+ *
+ * Both spellings are checked because a PDF string is not necessarily ASCII in
+ * the file: pdf-lib writes the info dictionary as UTF-16BE hex, so the marker
+ * appears as <FEFF00730075…>. Both needles are derived from the one constant,
+ * so this cannot fall out of step with what placeholderPdf actually wrote — and
+ * it keeps working if a future pdf-lib switches to literal strings.
+ */
+async function isPlaceholder(size, read) {
+  if (!(size > 0) || size >= PLACEHOLDER_MAX) return false;
+  const bytes = await read();
+  if (!bytes) return false;
+
+  const u8 = new Uint8Array(bytes);
+  let text = '';
+  for (let i = 0; i < u8.length; i++) text += String.fromCharCode(u8[i]);
+
+  return text.includes(PLACEHOLDER_MARK) || text.toUpperCase().includes(asPdfHex(PLACEHOLDER_MARK));
+}
+
+export {
+  hashBytes, cacheKey, cacheDir,
+  isPlaceholder, asPdfHex, PLACEHOLDER_MARK, PLACEHOLDER_MAX,
+};

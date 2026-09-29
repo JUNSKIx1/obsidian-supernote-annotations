@@ -10,3 +10,50 @@
 .nav-file-title[data-path$=".mark"] {
   display: none;
 }
+
+/*
+ * Shown while a PDF is being converted or having its ink drawn, which happens
+ * when you open it rather than at launch. Floats over the viewer instead of
+ * replacing it: the pages you already have stay readable while the rest lands.
+ *
+ * Theme variables throughout, so it follows whatever the user is running.
+ */
+
+.supernote-working {
+  position: absolute;
+  top: var(--size-4-3);
+  right: var(--size-4-3);
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: var(--size-4-2);
+  padding: var(--size-4-2) var(--size-4-3);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  background: var(--background-secondary);
+  box-shadow: var(--shadow-s);
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  pointer-events: none;
+}
+
+.supernote-working-spinner {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  border: 2px solid var(--background-modifier-border);
+  border-top-color: var(--text-accent);
+  border-radius: 50%;
+  animation: supernote-spin 0.7s linear infinite;
+}
+
+@keyframes supernote-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Respect the setting rather than spinning at someone who asked us not to. */
+@media (prefers-reduced-motion: reduce) {
+  .supernote-working-spinner {
+    animation-duration: 2.4s;
+  }
+}

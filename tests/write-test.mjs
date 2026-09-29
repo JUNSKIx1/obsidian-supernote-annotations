@@ -29,6 +29,13 @@ if (!fs.existsSync(MAIN)) {
   process.exit(1);
 }
 
+// waitForStableSize sleeps between polls, and the bundle reaches for the
+// browser's timers to do it.
+globalThis.window = {
+  setTimeout: (fn, ms) => setTimeout(fn, ms),
+  clearTimeout: (t) => clearTimeout(t),
+};
+
 class TFile {}
 class TFolder {}
 const obsidianStub = {
@@ -164,6 +171,60 @@ console.log('\nwriteTextIfChanged\n');
   await p.writeTextIfChanged('Note.md', 'body');
   check(!vault.log.some((l) => l.startsWith('createFolder:')), 'no folder for a root-level file');
   check(vault.files.has('Note.md'), 'still creates the file');
+}
+
+console.log('\nwaitForStableSize\n');
+
+/*
+ * The guard against parsing a file a sync client is still writing. It costs
+ * 250 ms of sleep per file, which across a vault was almost the entire cost of
+ * a launch — seconds spent confirming that months-old files had indeed stopped
+ * changing. It must stay in place for genuinely fresh files and get out of the
+ * way for everything else, so both halves are pinned here.
+ */
+
+/** An adapter that counts how often it is asked, and never settles. */
+function statCounter(size = 10) {
+  const calls = { n: 0 };
+  return {
+    calls,
+    adapter: {
+      async stat() {
+        calls.n++;
+        return { size: size + calls.n, mtime: 0 };   // always changing
+      },
+    },
+  };
+}
+
+{
+  const { calls, adapter } = statCounter();
+  const p = new PluginClass({ vault: { adapter } });
+  p.settings = {};
+  const old = Date.now() - 3600_000;
+  const t = Date.now();
+  const ok = await p.waitForStableSize('Old.note', 12, old);
+  check(ok === true, 'an hour-old file is taken as settled');
+  check(calls.n === 0, 'without a single stat call', `${calls.n} calls`);
+  check(Date.now() - t < 50, 'and without sleeping', `${Date.now() - t} ms`);
+}
+
+{
+  // Just-arrived files are exactly what the poll is for; it must still run.
+  const { calls, adapter } = statCounter();
+  const p = new PluginClass({ vault: { adapter } });
+  p.settings = {};
+  const ok = await p.waitForStableSize('Fresh.note', 3, Date.now());
+  check(ok === false, 'a file that never settles is reported as such');
+  check(calls.n === 3, 'and it really was polled', `${calls.n} calls`);
+}
+
+{
+  const { calls, adapter } = statCounter();
+  const p = new PluginClass({ vault: { adapter } });
+  p.settings = {};
+  await p.waitForStableSize('Unknown.note', 3, 0);
+  check(calls.n === 3, 'no mtime at all means poll, never assume', `${calls.n} calls`);
 }
 
 done();

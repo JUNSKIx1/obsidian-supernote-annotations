@@ -23,12 +23,18 @@ import * as PDFLib from 'pdf-lib';
 // pinned exactly in package.json because deep paths are not a public API.
 import { SupernoteX } from 'supernote-typescript/lib/parsing.js';
 
-import { noteToPdf, markToAnnotatedPdf } from './pdfout.js';
+import { noteToPdf, markToAnnotatedPdf, placeholderPdf } from './pdfout.js';
 import { collectText, indexPathFor, buildSidecar, DEFAULT_FOLDER } from './sidecar.js';
 import { stemOf, groupPaths, sidecarDir } from './paths.js';
-import { cacheKey, cacheDir } from './overlay.js';
+import { cacheKey, cacheDir, isPlaceholder, PLACEHOLDER_MARK } from './overlay.js';
 
 const LOG = '[supernote-annotations]';
+
+// Not a path, so it can never collide with a debounce timer keyed on one.
+const STARTUP = '\0startup';
+
+// Older than this and a file is not mid-write, so its size need not be watched.
+const SETTLED_MS = 60_000;
 
 const DEFAULTS = {
   convertNotes: true,
@@ -54,6 +60,11 @@ export default class SupernoteAnnotationsPlugin extends Plugin {
     this.queue = [];
     this.running = false;
     this.timers = new Map();
+    // Paths whose completion somebody is waiting on, and paths allowed to
+    // decode. A scan adds neither: it parses, indexes and leaves.
+    this.jobs = new Map();
+    this.onDemand = new Set();
+    this.current = null;
     // Paths we are in the middle of moving ourselves. Every renameFile below
     // fires the same rename event we are handling, so without this the first
     // move would recurse through the rest of the group.
@@ -79,6 +90,21 @@ export default class SupernoteAnnotationsPlugin extends Plugin {
 
     this.registerEvent(this.app.vault.on('delete', (file) => this.onDelete(file)));
 
+    this.registerEvent(this.app.workspace.on('file-open', (file) => {
+      this.onFileOpen(file).catch((e) => console.error(LOG, 'file-open', e));
+    }));
+
+    // An embedded PDF never fires file-open, so a note full of ![[embeds]]
+    // would sit there showing stand-ins forever. Kick the work off and let it
+    // land on the next render — there is no public way to redraw one embed.
+    this.registerMarkdownPostProcessor((el) => {
+      for (const embed of el.querySelectorAll('.internal-embed[src$=".pdf"]')) {
+        const target = this.app.metadataCache.getFirstLinkpathDest(
+          embed.getAttribute('src') || '', '');
+        if (target) this.onFileOpen(target).catch((e) => console.error(LOG, 'embed', e));
+      }
+    });
+
     this.addCommand({
       id: 'scan-all',
       name: 'Scan all files',
@@ -88,7 +114,15 @@ export default class SupernoteAnnotationsPlugin extends Plugin {
     this.addSettingTab(new SupernoteAnnotationsSettingTab(this.app, this));
 
     // One catch-up pass for anything that arrived while Obsidian was closed.
-    this.app.workspace.onLayoutReady(() => this.scanAll(false));
+    // On a delay: layout-ready still fires while Obsidian is settling, and this
+    // pass has nothing urgent in it — nothing is converted until you open
+    // something. Let the window finish opening first.
+    this.app.workspace.onLayoutReady(() => {
+      this.timers.set(STARTUP, window.setTimeout(() => {
+        this.timers.delete(STARTUP);
+        this.scanAll(false);
+      }, 2000));
+    });
   }
 
   onunload() {
@@ -113,9 +147,47 @@ export default class SupernoteAnnotationsPlugin extends Plugin {
     }, this.settings.debounceMs));
   }
 
-  enqueue(path) {
-    if (!this.queue.includes(path)) this.queue.push(path);
+  /**
+   * Put a source file in line, and hand back a promise for when it is done.
+   *
+   * `front` is for the file somebody is looking at right now: it jumps the
+   * queue rather than waiting behind a scan of the whole vault. It cannot jump
+   * the job already running — that one holds the ~20 MB/page decode budget this
+   * queue exists to serialise — so the worst wait is one file, not all of them.
+   *
+   * `generate` means "you may decode": a scan leaves it off, so nothing is
+   * converted or stamped until something actually asks for it.
+   */
+  enqueue(path, opts = {}) {
+    if (opts.generate) this.onDemand.add(path);
+
+    // Already being worked on. Not in the queue any more — it was shifted off —
+    // so a naive check would queue it a second time and hand the caller a
+    // promise for that redundant second pass instead of for the work in front
+    // of them. Wait on the one that is running.
+    if (path === this.current) return this.jobs.get(path).promise;
+
+    const at = this.queue.indexOf(path);
+    if (at !== -1 && opts.front) this.queue.splice(at, 1);
+    if (at === -1 || opts.front) {
+      if (opts.front) this.queue.unshift(path);
+      else this.queue.push(path);
+    }
+
+    // One promise per queued path, whether it was just added or was already
+    // waiting — two callers wanting the same file both want the same answer.
+    let job = this.jobs.get(path);
+    if (!job) {
+      job = {};
+      job.promise = new Promise((resolve, reject) => { job.resolve = resolve; job.reject = reject; });
+      // Most callers — a scan, a sync event — never look at the result. Marking
+      // it handled here stops those becoming unhandled rejections; awaiting the
+      // same promise elsewhere still sees the failure.
+      job.promise.catch(() => {});
+      this.jobs.set(path, job);
+    }
     this.drain();
+    return job.promise;
   }
 
   async drain() {
@@ -125,11 +197,21 @@ export default class SupernoteAnnotationsPlugin extends Plugin {
       while (this.queue.length) {
         const path = this.queue.shift();
         this.setStatus(`Supernote: ${this.queue.length + 1} queued`);
+        // Kept in `jobs` for the whole run, not just until it is shifted off:
+        // that is what lets a caller arriving mid-flight wait on this pass.
+        const job = this.jobs.get(path);
+        this.current = path;
         try {
           await this.process(path);
+          if (job) job.resolve();
         } catch (e) {
           console.error(LOG, path, e);
           new Notice(`Supernote: ${path.split('/').pop()} — ${e.message}`);
+          if (job) job.reject(e);
+        } finally {
+          this.current = null;
+          this.jobs.delete(path);
+          this.onDemand.delete(path);
         }
       }
     } finally {
@@ -145,10 +227,19 @@ export default class SupernoteAnnotationsPlugin extends Plugin {
     }
   }
 
+  /**
+   * Look at every source file in the vault.
+   *
+   * `loud` marks the deliberate pass — the command and the settings button —
+   * and that pass is also the one allowed to convert everything up front, which
+   * is how you pre-build a vault before going somewhere without the patience
+   * for it. The quiet startup pass only indexes: it writes sidecars so search
+   * works, and places holders so the files exist, but decodes nothing.
+   */
   async scanAll(loud) {
     const files = this.app.vault.getFiles().filter(isSource);
     this.sweepPending = true;
-    for (const f of files) this.enqueue(f.path);
+    for (const f of files) this.enqueue(f.path, { generate: loud });
     if (loud) new Notice(`Supernote: ${files.length} file(s) queued.`);
   }
 
@@ -213,9 +304,90 @@ export default class SupernoteAnnotationsPlugin extends Plugin {
 
   /** Rebuild any open PDF view of `path` so it picks up the new URL. */
   refreshViews(path) {
-    for (const leaf of this.app.workspace.getLeavesOfType('pdf')) {
-      if (leaf.view?.file?.path === path) leaf.setViewState(leaf.getViewState());
+    for (const leaf of this.leavesShowing(path)) {
+      // A deferred background tab has no view yet, so it is not in this list at
+      // all — which is fine: it reads the map when it is finally constructed.
+      Promise.resolve(leaf.setViewState(leaf.getViewState()))
+        .catch((e) => console.warn(LOG, 'could not refresh view of', path, e));
     }
+  }
+
+  leavesShowing(path) {
+    return this.app.workspace.getLeavesOfType('pdf').filter((l) => l.view?.file?.path === path);
+  }
+
+  /**
+   * Somebody opened a PDF. Build whatever it is still missing, now.
+   *
+   * This is where the work deferred at scan time actually happens. Two things
+   * can be outstanding and both can be outstanding at once: a notebook PDF that
+   * is still a stand-in, and ink that has not been drawn yet. A notebook's PDF
+   * can itself be annotated on the device — so the order matters. Convert
+   * first, or the ink is stamped onto the placeholder and thrown away by the
+   * conversion that follows.
+   *
+   * Nothing here blocks the open. The file appears immediately as whatever it
+   * is today, a badge says something is coming, and the view is rebuilt when it
+   * lands. Awaiting before the open would leave a blank frozen tab instead.
+   */
+  async onFileOpen(file) {
+    if (!(file instanceof TFile) || file.extension !== 'pdf') return;
+    if (!this.settings.convertNotes && !this.settings.convertMarks) return;
+
+    const stem = file.path.replace(/\.pdf$/i, '');
+    const note = this.app.vault.getAbstractFileByPath(`${stem}.note`);
+    const mark = this.app.vault.getAbstractFileByPath(`${file.path}.mark`);
+
+    const wantsNote = this.settings.convertNotes && note instanceof TFile
+      && await this.looksLikeStale(file, note);
+    const wantsMark = this.settings.convertMarks && mark instanceof TFile
+      && this.settings.overlayInPlace && !this.overlays.has(file.path);
+
+    if (!wantsNote && !wantsMark) return;     // already built: no queue, no badge
+
+    const done = this.showWorking(file.path,
+      wantsNote ? 'Converting your notebook…' : 'Adding your ink…');
+    try {
+      if (wantsNote) await this.enqueue(note.path, { front: true, generate: true });
+      if (wantsMark) await this.enqueue(mark.path, { front: true, generate: true });
+    } catch (e) {
+      console.error(LOG, 'on open', file.path, e);
+    } finally {
+      done();
+    }
+
+    // The mark path refreshes through setOverlay. A conversion rewrites the
+    // file in place, which Obsidian does not treat as a reason to redraw.
+    if (wantsNote) this.refreshViews(file.path);
+  }
+
+  /** Is this PDF a stand-in, or older than the notebook it came from? */
+  async looksLikeStale(pdf, note) {
+    if (pdf.stat.mtime < note.stat.mtime) return true;
+    return this.looksLikePlaceholder(pdf.path, null);
+  }
+
+  /**
+   * Badge on the view that is waiting, and a function that removes it.
+   *
+   * Held back briefly on purpose: most files are quick, and a badge that
+   * appears and vanishes inside a blink reads as a glitch rather than as
+   * progress.
+   */
+  showWorking(path, label) {
+    let el = null;
+    const timer = window.setTimeout(() => {
+      const leaf = this.leavesShowing(path)[0];
+      if (!leaf?.view?.containerEl) return;
+      el = leaf.view.containerEl.createDiv({ cls: 'supernote-working' });
+      el.createDiv({ cls: 'supernote-working-spinner' });
+      el.createSpan({ text: label });
+    }, 200);
+
+    return () => {
+      window.clearTimeout(timer);
+      if (el) el.remove();
+    };
   }
 
   /**
@@ -393,7 +565,15 @@ export default class SupernoteAnnotationsPlugin extends Plugin {
    * the cached value from when the file was indexed, and it is precisely the
    * changing size on disk we need to observe.
    */
-  async waitForStableSize(path, tries = 12) {
+  async waitForStableSize(path, tries = 12, mtime = 0) {
+    // A file nothing has touched for a minute is not being written right now,
+    // and polling it costs 250 ms of pure sleep. Across a vault that was the
+    // overwhelming majority of what a launch spent its time on — seconds of
+    // waiting to discover that months-old files had indeed stopped changing.
+    // The poll still runs in full for anything a sync client just dropped in,
+    // which is the case it exists for.
+    if (mtime && Date.now() - mtime > SETTLED_MS) return true;
+
     let last = -1;
     for (let i = 0; i < tries; i++) {
       const stat = await this.app.vault.adapter.stat(normalizePath(path));
@@ -469,7 +649,7 @@ export default class SupernoteAnnotationsPlugin extends Plugin {
    * — the device writes a .mark merely from opening a PDF, so most of them are
    * empty and must produce nothing at all.
    */
-  async stampMark(markPath, sn, markBytes, pdf, markMtime) {
+  async stampMark(markPath, sn, markBytes, pdf, markMtime, generate) {
     const inPlace = this.settings.overlayInPlace;
     const outPath = inPlace
       ? `${this.cacheDir()}/${cacheKey(markBytes, pdf.stat.size)}.pdf`
@@ -481,6 +661,10 @@ export default class SupernoteAnnotationsPlugin extends Plugin {
     const current = inPlace
       ? await this.app.vault.adapter.exists(normalizePath(outPath))
       : await this.isCurrent(outPath, Math.max(markMtime, pdf.stat.mtime));
+
+    // Not current and not asked to build it: this is a scan, which indexes but
+    // never decodes. Leave the PDF plain until somebody opens it.
+    if (!current && !generate) return inPlace ? pdf.path : null;
 
     if (!current) {
       const original = await this.app.vault.readBinary(pdf);
@@ -509,6 +693,52 @@ export default class SupernoteAnnotationsPlugin extends Plugin {
     return pdf.path;
   }
 
+  /**
+   * Make sure a notebook has a PDF beside it, converting only when asked.
+   *
+   * Obsidian cannot open a `.note`, so the PDF is the thing you click, link to
+   * and embed. Deferring the conversion cannot mean deferring the file as well
+   * — there would be nothing in the file explorer at all — so a stand-in takes
+   * the path until the real pages are wanted. Writing one costs no decoding.
+   *
+   * Returns the path the sidecar should point at, which is the PDF either way,
+   * or null for a notebook with nothing drawable in it.
+   */
+  async ensureNotePdf(notePath, sn, note, generate) {
+    const outPath = notePath.replace(/\.note$/i, '.pdf');
+    const stat = await this.app.vault.adapter.stat(normalizePath(outPath));
+    const holding = stat ? await this.looksLikePlaceholder(outPath, stat) : false;
+
+    // A real conversion, no older than the notebook it came from.
+    if (stat && !holding && stat.mtime >= note.stat.mtime) return outPath;
+
+    if (!generate) {
+      // Never replace a real conversion with a stand-in, even a stale one: it
+      // is worth more than the placeholder would be, and opening it rebuilds.
+      if (!stat) await this.writePlaceholder(outPath, sn, note.basename);
+      return outPath;
+    }
+
+    const out = await noteToPdf(sn, PDFLib);
+    if (!out) return null;                    // every page blank
+    await this.writeBinary(outPath, out);
+    new Notice(`PDF created: ${outPath.split('/').pop()}`);
+    return outPath;
+  }
+
+  /** Is the PDF at `path` one of our stand-ins? Cheap: usually just the size. */
+  async looksLikePlaceholder(path, stat) {
+    const p = normalizePath(path);
+    const st = stat || await this.app.vault.adapter.stat(p);
+    if (!st) return false;
+    return isPlaceholder(st.size, () => this.app.vault.adapter.readBinary(p));
+  }
+
+  async writePlaceholder(outPath, sn, name) {
+    const bytes = await placeholderPdf(sn, name, PDFLib, PLACEHOLDER_MARK);
+    await this.writeBinary(outPath, bytes);
+  }
+
   async process(path) {
     const file = this.app.vault.getAbstractFileByPath(path);
     if (!(file instanceof TFile)) return;
@@ -517,7 +747,7 @@ export default class SupernoteAnnotationsPlugin extends Plugin {
     if (isMark && !this.settings.convertMarks) return;
     if (!isMark && !this.settings.convertNotes) return;
 
-    if (!(await this.waitForStableSize(path))) {
+    if (!(await this.waitForStableSize(path, 12, file.stat.mtime))) {
       console.warn(LOG, 'size never settled, skipping', path);
       return;
     }
@@ -525,6 +755,10 @@ export default class SupernoteAnnotationsPlugin extends Plugin {
     const bytes = new Uint8Array(await this.app.vault.readBinary(file));
     const sn = new SupernoteX(bytes);
     const sourceMtime = file.stat.mtime;
+    // Only a job somebody is waiting on may decode page images. A scan gets
+    // this far — parsing, indexing, writing the sidecar — and stops short of
+    // the expensive part.
+    const generate = this.onDemand.has(path);
 
     let artefact = null;
 
@@ -533,29 +767,22 @@ export default class SupernoteAnnotationsPlugin extends Plugin {
       const pdf = this.app.vault.getAbstractFileByPath(pdfPath);
       if (!(pdf instanceof TFile)) {
         console.warn(LOG, 'no PDF beside', path);
-        return;
-      }
-      artefact = await this.stampMark(path, sn, bytes, pdf, sourceMtime);
-      if (artefact === null) return;          // no ink → deliberately nothing
-    } else {
-      const outPath = path.replace(/\.note$/i, '.pdf');
-
-      if (await this.isCurrent(outPath, sourceMtime)) {
-        artefact = outPath;
       } else {
-        const out = await noteToPdf(sn, PDFLib);
-        if (!out) return;
-        await this.writeBinary(outPath, out);
-        artefact = outPath;
-        new Notice(`PDF created: ${outPath.split('/').pop()}`);
+        artefact = await this.stampMark(path, sn, bytes, pdf, sourceMtime, generate);
       }
+    } else {
+      artefact = await this.ensureNotePdf(path, sn, file, generate);
     }
 
-    // Handled independently of the PDF above: switching sidecars on long after
-    // the PDFs were built has to backfill them, otherwise the setting appears
-    // to do nothing at all and never says why. Building the sidecar is cheap —
-    // the text is already parsed and no image is decoded — so it is rebuilt
-    // every pass and written only if it differs.
+    // Deliberately reached even when there is no artefact — an ink-free .mark,
+    // a notebook whose pages are all blank, one that simply has not been
+    // converted yet. The recognised handwriting is already parsed and costs
+    // nothing more, and a sidecar is what makes that text searchable. Returning
+    // early here would mean search quietly not working for exactly the files
+    // nobody has opened.
+    //
+    // It is written on every pass and only when the content differs, so
+    // switching the setting on later backfills instead of silently no-opping.
     if (this.settings.writeSidecars) {
       const pages = collectText(sn);
       if (pages) {

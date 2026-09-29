@@ -20,6 +20,8 @@ const suites = [
   'sidecar-test.mjs',
   'paths-test.mjs',
   'overlay-test.mjs',
+  'placeholder-test.mjs',
+  'queue-test.mjs',
   'bundle-test.mjs',
   'write-test.mjs',
   'move-test.mjs',

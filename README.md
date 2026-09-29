@@ -20,24 +20,17 @@ files Obsidian can actually open.
 
 ![How the files get to you and what happens to them. Your Supernote and your vault are kept in step, both ways, by WebDAV or any other file sync — Nextcloud, Dropbox, Supernote Cloud, or just a USB copy; the plugin syncs nothing itself, it only watches the folder. Three files land there read-only and are never modified: a .note notebook, a PDF you copied in, and its .pdf.mark ink layer. You then open three things: a new PDF converted from the notebook, that same PDF you copied in — byte-for-byte unchanged, now with your ink drawn on it as it opens — and an optional searchable Markdown index built from recognized handwriting](assets/images/pipeline.png)
 
-### 🖼️ Example
-
-![PDFs in the Obsidian file explorer: one converted from a notebook, one copied in and annotated on the device](assets/images/files-examples.png)
-
-The same thing in a real vault: `20260814_134036.pdf` was converted from a notebook, and `Aufgaben
-Beschaffung.pdf` is the original you copied in — open it and your ink is on it, though the file
-itself has not changed. The `.note` and `.mark` files sit right beside them on disk; you do not see
-them because `styles.css` hides both from the file explorer.
-
-> ℹ️ This screenshot predates 1.1.0, so it still shows a third file, `Aufgaben Beschaffung
-> (annotated).pdf`. That copy is no longer made.
-
 **Why you never see the `.mark` on the device.** The Supernote stores your ink in a separate file
 beside the PDF and draws the two together as you read, so its file browser shows only one item and
 your strokes stay editable.
 
 It is pure JavaScript with no native code and no external services, so it runs on the desktop app
 and on a phone alike.
+
+## Example
+![Example image](assets/images/result_example.png)
+
+This is an example PDF. It consists of two files actually but get displayed as one PDF in you Vault. The lines drawn are the content of the .mark file and the everything else is the PDF itself. It just gets merged.
 
 ## 🔒 It never changes what is inside your originals
 
@@ -49,7 +42,8 @@ This is the design premise, not a footnote:
   [Moving files around](#-moving-files-around). It never picks a location for you.
 - 📄 Your ink is **drawn as the PDF opens**, never written into it, so the strokes stay editable on
   the device and the copy it syncs back stays clean.
-- 🗑️ Everything generated is safe to delete. It gets rebuilt on the next scan.
+- 🗑️ Everything generated is safe to delete. A converted PDF comes back as a stand-in on the next
+  scan and converts again the next time you open it.
 - 🚫 Nothing is sent anywhere. No network calls, no telemetry, no account.
 
 ## 📦 Install
@@ -69,11 +63,38 @@ converts anything that appears.
 New files are picked up automatically. There is also a **Scan all files** command, and a
 **Scan** button in settings, for a full pass over everything.
 
+### ⚡ Nothing is converted until you open it
+
+Starting Obsidian does not convert anything. A scan reads your notebooks, writes the searchable
+sidecars, and stops — **no page is decoded until you actually open the file**. On a vault of
+twenty notebooks that is the difference between a launch that costs 42 seconds and one that costs
+a tenth of a second.
+
+Open a notebook's PDF and it converts right then, with a badge in the corner while it works. The
+file you opened jumps ahead of everything else queued, so you are never waiting behind a notebook
+you were not looking at. It is converted once and stays converted.
+
+Until then the `.pdf` is a one-page **stand-in** naming the notebook and its page count. It has to
+be a real file: Obsidian cannot open a `.note`, so the PDF is the thing you click, link to and
+embed — deferring the conversion cannot mean deferring the file too. Your Supernote will receive
+that stand-in over the same sync, which is why it says what it is rather than showing a blank page.
+
+**Handwriting search works regardless.** Sidecars come from the text the device recognised, not
+from the page images, so they are written on the first scan and searchable immediately — including
+for notebooks you have never opened.
+
+Want everything built up front anyway — before a flight, say? **Scan all files** converts the lot.
+
+⚠️ A PDF **embedded** in a note with `![[…]]` does not count as opening it. The embed shows the
+stand-in, starts the conversion in the background, and picks up the real pages the next time that
+note renders.
+
 ### ✍️ Annotating a PDF
 
 Copy the PDF into your vault, open it on the Supernote, and write on it. When the `.mark` reaches
 your vault, **the PDF starts showing your ink** — the same one file, no second copy to pick
-between. Keep writing and it keeps up.
+between. Keep writing and it keeps up. As above, the ink is drawn the first time you open the
+file, not when the `.mark` lands.
 
 The file on disk never changes. The ink is drawn as Obsidian opens it, from the `.mark` beside it,
 which is exactly what the device does. Delete the `.mark` and the PDF is plain again, with nothing
@@ -179,6 +200,14 @@ index to maintain. It is a cache: deleting the folder costs a rebuild and nothin
 Obsidian that does not expose what this needs, the plugin says so and falls back to the separate
 file rather than to an empty viewer.
 
+**Decoding is deferred because it is the only expensive thing here.** Parsing a notebook,
+recovering its recognised text and hashing its ink layer cost milliseconds; turning pages into
+images costs seconds and roughly 20 MB per page. So a scan does everything except that, and the
+decode waits for a file to be opened. The stand-in PDF a notebook gets in the meantime marks
+itself with `supernote-placeholder` in its Subject, written uncompressed so recognising one is a
+substring scan gated on file size rather than a parse — a marker kept inside the file cannot drift
+out of step with it the way a list kept alongside would.
+
 **The RATTA_RLE decoder is hand-written** (`src/rle.js`), which is why the plugin needs no image
 library and runs on a phone. It is verified page by page against
 [supernote-tool](https://github.com/jya-dev/supernote-tool) as ground truth. One known and
@@ -234,6 +263,8 @@ Without it, the unit tests still run and the rest skip themselves.
 | `tests/sidecar-test.mjs` | tag extraction, page collection, sidecar shape | nothing |
 | `tests/paths-test.mjs` | which files form a group, recovered from any one of them | nothing |
 | `tests/overlay-test.mjs` | the cache key: content-derived, stable across moves | nothing |
+| `tests/placeholder-test.mjs` | a stand-in is never confused with a real conversion, either way | nothing |
+| `tests/queue-test.mjs` | a scan never decodes; the file you opened jumps the queue; work stays serialised | built `main.js` |
 | `tests/move-test.mjs` | one drag moves the group, the echo does not recurse, nothing is overwritten | built `main.js` |
 | `tests/bundle-test.mjs` | loads the built `main.js` exactly as Obsidian does | built `main.js` |
 | `tests/pdf-test.mjs` | full pipeline into a temp dir; asserts sources are byte-identical after | samples |
