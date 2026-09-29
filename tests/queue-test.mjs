@@ -213,4 +213,34 @@ console.log('\nwork stays serialised\n');
   check(plugin.jobs.size === 0, 'and no promises left dangling');
 }
 
+console.log('\nrefreshViews\n');
+{
+  // A leaf that behaves like Obsidian's: setting the same type and file again
+  // keeps the loaded document, so only a real reload counts. Leaving the empty
+  // view records no history there either.
+  const loads = [];
+  const history = [];
+  const leaf = {
+    type: 'pdf',
+    view: { file: { path: 'a.pdf' } },
+    getViewState: () => ({ type: leaf.type, state: { file: 'a.pdf' } }),
+    getEphemeralState: () => ({ page: 7 }),
+    async setViewState(vs, eState) {
+      if (vs.type !== leaf.type) {
+        if (!vs.popstate && leaf.type !== 'empty') history.push(leaf.type);
+        leaf.type = vs.type;
+        if (vs.type === 'pdf') loads.push(eState);
+      }
+    },
+  };
+  const { plugin } = setup();
+  plugin.app.workspace.getLeavesOfType = (t) => (leaf.type === t ? [leaf] : []);
+  plugin.refreshViews('a.pdf');
+  await new Promise((r) => setTimeout(r, 10));
+  check(loads.length === 1, 'an open PDF view is actually reloaded', `loads: ${loads.length}`);
+  check(loads[0]?.page === 7, 'the reload keeps the page you were on');
+  check(leaf.type === 'pdf', 'the tab ends up showing the PDF again');
+  check(history.length === 0, 'the detour leaves no back-history entry', history.join(','));
+}
+
 done();

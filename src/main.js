@@ -302,12 +302,25 @@ export default class SupernoteAnnotationsPlugin extends Plugin {
     this.refreshViews(pdfPath);
   }
 
-  /** Rebuild any open PDF view of `path` so it picks up the new URL. */
+  /**
+   * Rebuild any open PDF view of `path` so it picks up the new URL.
+   *
+   * Setting a leaf's own state back on it does nothing: same view type, same
+   * file, so Obsidian keeps the loaded document and the ink only appears on the
+   * next open. Going through an empty view forces a fresh load — the same thing
+   * Obsidian's internal rebuildView does — and the eState keeps the scroll.
+   */
   refreshViews(path) {
     for (const leaf of this.leavesShowing(path)) {
       // A deferred background tab has no view yet, so it is not in this list at
       // all — which is fine: it reads the map when it is finally constructed.
-      Promise.resolve(leaf.setViewState(leaf.getViewState()))
+      const state = leaf.getViewState();
+      const eState = leaf.getEphemeralState();
+      // popstate keeps the detour out of the tab's back history, or Back would
+      // land on the same PDF. Untyped but honoured by setViewState; without it
+      // the cost is one extra history step, nothing worse.
+      leaf.setViewState({ type: 'empty', popstate: true })
+        .then(() => leaf.setViewState(state, eState))
         .catch((e) => console.warn(LOG, 'could not refresh view of', path, e));
     }
   }
