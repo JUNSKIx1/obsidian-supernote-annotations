@@ -36,7 +36,7 @@ check(cacheKey(bytes(1, 2, 3), 4096) !== cacheKey(bytes(1, 2, 9), 4096),
   'new ink rebuilds');
 check(cacheKey(bytes(1, 2, 3), 4096) !== cacheKey(bytes(1, 2, 3), 5000),
   'a different PDF underneath rebuilds');
-check(/^[0-9a-f]{8}-\d+$/.test(cacheKey(bytes(1), 12)), 'is safe as a filename');
+check(/^v\d+-[0-9a-f]{8}-\d+$/.test(cacheKey(bytes(1), 12)), 'is safe as a filename');
 
 console.log('\ncacheDir\n');
 

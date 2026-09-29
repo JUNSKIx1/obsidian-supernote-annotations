@@ -33,6 +33,13 @@ function hashBytes(bytes) {
 }
 
 /**
+ * Bump whenever the stamping output changes. Old entries then miss the cache
+ * and sweepCache removes them, instead of an update being hidden behind copies
+ * the previous version drew. 2: ink on /Rotate pages drawn upright.
+ */
+const RENDER_VERSION = 2;
+
+/**
  * The cache entry name for an ink layer stamped onto a particular PDF.
  *
  * The original's size is in the key so that replacing the PDF underneath an
@@ -43,7 +50,7 @@ function hashBytes(bytes) {
  * PDF too if that ever actually bites.
  */
 function cacheKey(markBytes, pdfSize) {
-  return `${hashBytes(markBytes)}-${pdfSize}`;
+  return `v${RENDER_VERSION}-${hashBytes(markBytes)}-${pdfSize}`;
 }
 
 /** The cache folder, inside the plugin's own directory under .obsidian. */
