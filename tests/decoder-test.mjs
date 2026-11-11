@@ -11,10 +11,10 @@
  *   - blank vs. not-blank    exactly   ← this decides whether a file gets output
  *   - opaque pixel count     within PIXEL_TOL_PCT
  *
- * The pixel-count tolerance exists because the Python tool antialiases
- * (ANTIALIASING_CONVERT=2) and we do not, so edge pixels differ slightly. The
- * bounding box does not have that excuse and is held tight — an off-by-one in a
- * run length shows up there as skewed handwriting long before it is visible.
+ * Ink-only pages match pixel for pixel. The tolerance is for inserted pictures,
+ * where a few hundred grey pixels per page land differently. The bounding box is
+ * held tight — an off-by-one in a run length shows up there as skewed
+ * handwriting long before it is visible.
  *
  * Requires: supernote-tool on PATH, python3 with Pillow. Writes only to a temp
  * directory; the samples are read-only here.
@@ -43,9 +43,9 @@ for (const [cmd, args] of [['supernote-tool', ['--help']], ['python3', ['-c', 'i
 }
 
 const BBOX_TOL = 2;
-const PIXEL_TOL_PCT = 0.5;
+const PIXEL_TOL_PCT = 1;
 
-/** Ground truth for one file: [{size,bbox,opaque,core}] per page, via supernote-tool + Pillow. */
+/** Ground truth for one file: [{size,bbox,opaque}] per page, via supernote-tool + Pillow. */
 function reference(file, tmp) {
   const stem = path.join(tmp, 'ref');
   for (const f of fs.readdirSync(tmp)) fs.unlinkSync(path.join(tmp, f));
@@ -66,15 +66,7 @@ for f in fs:
     bb = a.getbbox()
     cols = im.getcolors(maxcolors=1<<20) or []
     opaque = sum(c for c, col in cols if col[3] > 0)
-    # supernote-tool antialiases: besides the palette colours it emits a fringe
-    # of intermediate greys, all at full alpha. Count only the true palette
-    # values (black 0x00, darkGray 0x9d=157, gray 0xc9=201, white 0xfe=254),
-    # which is what an unsmoothed decoder is expected to reproduce exactly.
-    CORE = {0, 157, 201, 254, 255}
-    core = sum(c for c, col in cols
-               if col[3] == 255 and col[0] == col[1] == col[2] and col[0] in CORE)
-    out.append({"size": list(im.size), "bbox": list(bb) if bb else None,
-                "opaque": opaque, "core": core})
+    out.append({"size": list(im.size), "bbox": list(bb) if bb else None, "opaque": opaque})
 print(json.dumps(out))
 `;
   return JSON.parse(execFileSync('python3', ['-c', py], { encoding: 'utf8' }));
@@ -122,12 +114,9 @@ for (const file of files) {
       if (Math.max(...drift) > BBOX_TOL) {
         problems.push(`p${i}: bbox [${got.bbox}] vs [${want.bbox}] (drift ${Math.max(...drift)}px)`);
       }
-      // Compare against the reference's palette-colour pixels only; its
-      // antialiasing fringe is a rendering choice, not a decoding difference.
-      const diff = Math.abs(got.opaque - want.core) / Math.max(1, want.core) * 100;
+      const diff = Math.abs(got.opaque - want.opaque) / Math.max(1, want.opaque) * 100;
       if (diff > PIXEL_TOL_PCT) {
-        problems.push(`p${i}: ${got.opaque} px vs reference ${want.core} palette px`
-          + ` (${diff.toFixed(2)}% off; reference total incl. antialiasing ${want.opaque})`);
+        problems.push(`p${i}: ${got.opaque} px vs reference ${want.opaque} px (${diff.toFixed(2)}% off)`);
       }
     }
   }

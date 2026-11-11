@@ -47,12 +47,16 @@ function pack(r, g, b, a) {
     : (((r << 24) | (g << 16) | (b << 8) | a) >>> 0);
 }
 
+// Any code outside the palette is a literal grey level, opaque. That is how a
+// picture inserted on the device is stored (and anti-aliased stroke edges), and
+// how supernote-tool's X2 decoder reads it. Dropping those codes as transparent
+// made inserted pictures vanish.
 const PACKED = (() => {
-  const t = {};
+  const t = new Uint32Array(256);
+  for (let c = 0; c < 256; c++) t[c] = pack(c, c, c, 255);
   for (const [k, v] of Object.entries(PALETTE)) t[Number(k)] = pack(v[0], v[1], v[2], v[3]);
   return t;
 })();
-const PACKED_UNKNOWN = pack(0, 0, 0, 0);
 
 /**
  * The tail run carries no explicit length; pick the largest power-of-two
@@ -128,7 +132,7 @@ function decodeLayer(buffer, width, height, allBlank) {
   const pixels = new Uint32Array(out.buffer);
 
   const cursor = walkRuns(buffer, totalPixels, !!allBlank, (at, colour, length) => {
-    const packed = PACKED[colour] !== undefined ? PACKED[colour] : PACKED_UNKNOWN;
+    const packed = PACKED[colour];
     const end = Math.min(at + length, pixels.length);
     if (end > at) pixels.fill(packed, at, end);
     return at + length;

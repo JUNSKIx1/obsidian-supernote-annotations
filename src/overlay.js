@@ -36,8 +36,9 @@ function hashBytes(bytes) {
  * Bump whenever the stamping output changes. Old entries then miss the cache
  * and sweepCache removes them, instead of an update being hidden behind copies
  * the previous version drew. 2: ink on /Rotate pages drawn upright.
+ * 3: pictures inserted on the device drawn instead of dropped.
  */
-const RENDER_VERSION = 2;
+const RENDER_VERSION = 3;
 
 /**
  * The cache entry name for an ink layer stamped onto a particular PDF.
